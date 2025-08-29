@@ -1,0 +1,941 @@
+import 'package:befab/charts/BloodPressureWidget.dart';
+import 'package:befab/components/ActivityStatCard.dart';
+import 'package:befab/components/BodyMetricsWidget.dart';
+import 'package:befab/components/CustomAppHeader.dart';
+import 'package:befab/components/CustomBottomNavBar.dart';
+import 'package:befab/components/HealthMetricsListWidget.dart';
+import 'package:befab/components/HeartRateWidget.dart';
+import 'package:befab/services/health_service.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // Ensure this import is at the top
+
+import 'package:flutter/material.dart';
+
+class VitalsMeasurement extends StatefulWidget {
+  @override
+  _VitalsMeasurementState createState() => _VitalsMeasurementState();
+}
+
+class _VitalsMeasurementState extends State<VitalsMeasurement> {
+  final HealthService healthService = HealthService();
+  Map<String, dynamic>? healthData;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 👇 FIX: Only run after widget tree is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadHealthData();
+    });
+  }
+
+  Future<void> _loadHealthData() async {
+    bool isInstalled = await healthService.isHealthAppInstalled();
+    if (!isInstalled) {
+      healthService.suggestInstallHealthApp(context);
+      return;
+    }
+
+    bool authorized = await healthService.requestAuthorization();
+    debugPrint("$authorized");
+    if (!authorized) {
+      debugPrint("❌ Health permissions denied!");
+      return;
+    }
+
+    Map<String, dynamic> data = await healthService.fetchAllData(
+      from: DateTime.now().subtract(const Duration(days: 30)),
+      to: DateTime.now(),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      healthData = data;
+    });
+
+    // sendData(data);
+
+    debugPrint("✅ Platform: ${healthService.getPlatform()}");
+    debugPrint(
+      "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')}",
+    );
+  }
+
+  // Helper to get a single value safely from healthData
+  /// Sums all entries in `healthData[type]` and returns "total unit"
+  /// Works with entries shaped like:
+  /// { "value": {"numericValue": 10}, "unit": "COUNT", ... }
+  // --- Simplified units map ---
+  Map<String, String> simplifiedUnits = {
+    // Distance
+    "METER": "m",
+    "KILOMETER": "km",
+    "MILE": "mi",
+    "YARD": "yd",
+    "FOOT": "ft",
+
+    // Weight
+    "GRAM": "g",
+    "KILOGRAM": "kg",
+    "OUNCE": "oz",
+    "POUND": "lb",
+
+    // Pressure
+    "MILLIMETER_OF_MERCURY": "mmHg",
+    "INCH_OF_MERCURY": "inHg",
+    "PASCAL": "Pa",
+    "KILOPASCAL": "kPa",
+
+    // Temperature
+    "CELSIUS": "°C",
+    "FAHRENHEIT": "°F",
+    "KELVIN": "K",
+
+    // Energy
+    "CALORIE": "kcal",
+    "KILOJOULE": "kJ",
+
+    // Time
+    "SECOND": "s",
+    "MINUTE": "min",
+    "HOUR": "h",
+    "DAY": "d",
+
+    // Volume / Liquids
+    "LITER": "L",
+    "MILLILITER": "mL",
+    "FLUID_OUNCE_US": "fl oz",
+
+    // Counts / Steps
+    "COUNT": "",
+    "BEAT": "beat",
+    "BEAT_PER_MINUTE": "bpm",
+    "REP": "rep",
+
+    // Percentages
+    "PERCENTAGE": "%",
+
+    // Sleep / activity types
+    "SLEEP_ASLEEP": "sleep",
+    "SLEEP_IN_BED": "in bed",
+    "SLEEP_AWAKE": "awake",
+
+    // Other HealthKit / Health Connect types
+    "DISTANCE_WALKING_RUNNING": "m",
+    "DISTANCE_CYCLING": "m",
+    "ACTIVE_ENERGY_BURNED": "kcal",
+    "BASAL_ENERGY_BURNED": "kcal",
+    "BODY_MASS_INDEX": "BMI",
+    "BODY_FAT_PERCENTAGE": "%",
+    "LEAN_BODY_MASS": "kg",
+    "RESTING_HEART_RATE": "bpm",
+    "HEART_RATE": "bpm",
+    "STEP_COUNT": "",
+    "FLIGHTS_CLIMBED": "fl",
+    "WALKING_HEART_RATE": "bpm",
+    "VO2_MAX": "ml/kg/min",
+    "DISTANCE_SWIMMING": "m",
+    "SWIM_STROKE_COUNT": "stroke",
+    "WORKOUT_DURATION": "min",
+    "DURATION": "min",
+    "BODY_TEMPERATURE": "°C",
+    "BLOOD_PRESSURE_SYSTOLIC": "mmHg",
+    "BLOOD_PRESSURE_DIASTOLIC": "mmHg",
+    "BLOOD_GLUCOSE": "mg/dL",
+    "BLOOD_OXYGEN": "%",
+    "RESPIRATORY_RATE": "breaths/min",
+    "OXYGEN_SATURATION": "%",
+    "HEADACHE_SEVERITY": "",
+    "MOOD": "",
+    "STRESS_LEVEL": "",
+    "WATER": "L",
+    "CAFFEINE": "mg",
+    "ALCOHOL_CONSUMED": "g",
+    "TOBACCO_SMOKED": "cig",
+    "BODY_MASS": "kg",
+    "HEIGHT": "m",
+    "BEATS_PER_MINUTE": "bpm",
+    "PERCENT": "%",
+  };
+
+  // --- Your function remains unchanged except mapping unit at the end ---
+  Map<String, dynamic> getHealthValue(
+    String type, {
+    int decimalsIfDouble = 2,
+    bool convertMetersToKm = false,
+  }) {
+    if (healthData == null) return {"data": "--", "unit": ""};
+
+    final raw = healthData![type];
+    if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
+
+    // --- pick the most common unit present in the list ---
+    String _resolveUnit(List list) {
+      final counts = <String, int>{};
+      for (final e in list) {
+        if (e is Map) {
+          String? u;
+          if (e['unit'] is String) {
+            u = e['unit'] as String;
+          }
+          if (u != null && u.isNotEmpty) {
+            counts[u] = (counts[u] ?? 0) + 1;
+          }
+        }
+      }
+      if (counts.isEmpty) return '';
+      return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    }
+
+    final unitFromData = _resolveUnit(raw);
+
+    // --- sum numeric values ---
+    num total = 0;
+
+    for (final e in raw) {
+      if (e is! Map) continue;
+
+      final value = e['value'];
+      if (value != null) {
+        total += value.numericValue;
+      }
+    }
+
+    // optional unit conversion
+    String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
+    if (convertMetersToKm && unitFromData == "METER") {
+      total = total / 1000;
+      outUnit = "km";
+    }
+
+    // format nicely
+    String formatted;
+    if (total % 1 == 0) {
+      formatted = total.toInt().toString();
+    } else {
+      formatted = total.toStringAsFixed(decimalsIfDouble);
+    }
+
+    return {"data": formatted, "unit": outUnit};
+  }
+
+  // Helper method to get heart rate data for the chart
+  List<HeartRateData> _getHeartRateChartData() {
+    if (healthData == null ||
+        healthData!['HealthDataType.HEART_RATE'] == null) {
+      return [
+        HeartRateData(time: '6AM', value: 68),
+        HeartRateData(time: '9AM', value: 75),
+        HeartRateData(time: '12PM', value: 82),
+        HeartRateData(time: '3PM', value: 78),
+        HeartRateData(time: '6PM', value: 85),
+        HeartRateData(time: '9PM', value: 72),
+        HeartRateData(time: '10PM', value: 70),
+      ];
+    }
+
+    final heartRateData = healthData!['HealthDataType.HEART_RATE'] as List;
+    if (heartRateData.isEmpty) {
+      return [
+        HeartRateData(time: '6AM', value: 68),
+        HeartRateData(time: '9AM', value: 75),
+        HeartRateData(time: '12PM', value: 82),
+        HeartRateData(time: '3PM', value: 78),
+        HeartRateData(time: '6PM', value: 85),
+        HeartRateData(time: '9PM', value: 72),
+        HeartRateData(time: '10PM', value: 70),
+      ];
+    }
+
+    // Get the latest 7 readings for the chart
+    final recentReadings =
+        heartRateData.length > 7
+            ? heartRateData.sublist(heartRateData.length - 7)
+            : heartRateData;
+
+    List<HeartRateData> chartData = [];
+    List<String> timeLabels = [
+      '6AM',
+      '9AM',
+      '12PM',
+      '3PM',
+      '6PM',
+      '9PM',
+      '10PM',
+    ];
+
+    for (int i = 0; i < recentReadings.length; i++) {
+      if (i < timeLabels.length) {
+        final reading = recentReadings[i];
+        if (reading is Map && reading['value'] != null) {
+          chartData.add(
+            HeartRateData(
+              time: timeLabels[i],
+              value: reading['value'].numericValue.toDouble(),
+            ),
+          );
+        }
+      }
+    }
+
+    return chartData;
+  }
+
+  // Helper method to get blood pressure data for the chart
+  List<BloodPressureData> _getBloodPressureChartData() {
+    if (healthData == null ||
+        healthData!['HealthDataType.BLOOD_PRESSURE_SYSTOLIC'] == null ||
+        healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] == null) {
+      return [
+        BloodPressureData(day: 'Mon', systolic: 120, diastolic: 78),
+        BloodPressureData(day: 'Tue', systolic: 118, diastolic: 76),
+        BloodPressureData(day: 'Wed', systolic: 115, diastolic: 75),
+        BloodPressureData(day: 'Thu', systolic: 119, diastolic: 77),
+        BloodPressureData(day: 'Fri', systolic: 122, diastolic: 79),
+        BloodPressureData(day: 'Sat', systolic: 117, diastolic: 74),
+        BloodPressureData(day: 'Sun', systolic: 118, diastolic: 75),
+      ];
+    }
+
+    final systolicData =
+        healthData!['HealthDataType.BLOOD_PRESSURE_SYSTOLIC'] as List;
+    final diastolicData =
+        healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] as List;
+
+    if (systolicData.isEmpty || diastolicData.isEmpty) {
+      return [
+        BloodPressureData(day: 'Mon', systolic: 120, diastolic: 78),
+        BloodPressureData(day: 'Tue', systolic: 118, diastolic: 76),
+        BloodPressureData(day: 'Wed', systolic: 115, diastolic: 75),
+        BloodPressureData(day: 'Thu', systolic: 119, diastolic: 77),
+        BloodPressureData(day: 'Fri', systolic: 122, diastolic: 79),
+        BloodPressureData(day: 'Sat', systolic: 117, diastolic: 74),
+        BloodPressureData(day: 'Sun', systolic: 118, diastolic: 75),
+      ];
+    }
+
+    // Get the latest 7 readings for the chart
+    final recentSystolic =
+        systolicData.length > 7
+            ? systolicData.sublist(systolicData.length - 7)
+            : systolicData;
+
+    final recentDiastolic =
+        diastolicData.length > 7
+            ? diastolicData.sublist(diastolicData.length - 7)
+            : diastolicData;
+
+    List<BloodPressureData> chartData = [];
+    List<String> dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    for (int i = 0; i < recentSystolic.length; i++) {
+      if (i < dayLabels.length && i < recentDiastolic.length) {
+        final systolicReading = recentSystolic[i];
+        final diastolicReading = recentDiastolic[i];
+
+        if (systolicReading is Map &&
+            systolicReading['value'] != null &&
+            diastolicReading is Map &&
+            diastolicReading['value'] != null) {
+          chartData.add(
+            BloodPressureData(
+              day: dayLabels[i],
+              systolic: systolicReading['value'].numericValue.toDouble(),
+              diastolic: diastolicReading['value'].numericValue.toDouble(),
+            ),
+          );
+        }
+      }
+    }
+
+    return chartData;
+  }
+
+  // Helper method to calculate heart rate statistics
+  Map<String, dynamic> _getHeartRateStats() {
+    if (healthData == null ||
+        healthData!['HealthDataType.HEART_RATE'] == null) {
+      return {
+        'current': 72,
+        'min': 58,
+        'avg': 72,
+        'max': 110,
+        'resting': 62,
+        'variability': 58,
+      };
+    }
+
+    final heartRateData = healthData!['HealthDataType.HEART_RATE'] as List;
+    if (heartRateData.isEmpty) {
+      return {
+        'current': 72,
+        'min': 58,
+        'avg': 72,
+        'max': 110,
+        'resting': 62,
+        'variability': 58,
+      };
+    }
+
+    // Get the latest reading for current heart rate
+    double current = 0;
+    if (heartRateData.isNotEmpty) {
+      final latestReading = heartRateData.last;
+      if (latestReading is Map && latestReading['value'] != null) {
+        current = latestReading['value'].numericValue.toDouble();
+      }
+    }
+
+    // Calculate min, max, and average
+    double min = double.maxFinite;
+    double max = double.minPositive;
+    double sum = 0;
+
+    for (final reading in heartRateData) {
+      if (reading is Map && reading['value'] != null) {
+        final value = reading['value'].numericValue.toDouble();
+        min = value < min ? value : min;
+        max = value > max ? value : max;
+        sum += value;
+      }
+    }
+
+    double avg = heartRateData.isNotEmpty ? sum / heartRateData.length : 0;
+
+    // For resting heart rate, we might need to filter for specific times
+    // For simplicity, we'll use the minimum value as resting heart rate
+    double resting = min;
+
+    // Heart rate variability calculation would require more specific data
+    // For now, we'll use a placeholder
+    double variability = 58;
+
+    return {
+      'current': current,
+      'min': min,
+      'avg': avg,
+      'max': max,
+      'resting': resting,
+      'variability': variability,
+    };
+  }
+
+  // Helper method to get blood pressure statistics
+  Map<String, dynamic> _getBloodPressureStats() {
+    if (healthData == null ||
+        healthData!['HealthDataType.BLOOD_PRESSURE_SYSTOLIC'] == null ||
+        healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] == null) {
+      return {
+        'systolic': 118,
+        'diastolic': 75,
+        'lastWeekAverage': '120/78',
+        'map': 89,
+        'pulse': 72,
+      };
+    }
+
+    final systolicData =
+        healthData!['HealthDataType.BLOOD_PRESSURE_SYSTOLIC'] as List;
+    final diastolicData =
+        healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] as List;
+
+    if (systolicData.isEmpty || diastolicData.isEmpty) {
+      return {
+        'systolic': 118,
+        'diastolic': 75,
+        'lastWeekAverage': '120/78',
+        'map': 89,
+        'pulse': 72,
+      };
+    }
+
+    // Get the latest reading
+    double systolic = 0;
+    double diastolic = 0;
+
+    if (systolicData.isNotEmpty && diastolicData.isNotEmpty) {
+      final latestSystolic = systolicData.last;
+      final latestDiastolic = diastolicData.last;
+
+      if (latestSystolic is Map &&
+          latestSystolic['value'] != null &&
+          latestDiastolic is Map &&
+          latestDiastolic['value'] != null) {
+        systolic = latestSystolic['value'].numericValue.toDouble();
+        diastolic = latestDiastolic['value'].numericValue.toDouble();
+      }
+    }
+
+    // Calculate last week average
+    double systolicSum = 0;
+    double diastolicSum = 0;
+    int count = 0;
+
+    final oneWeekAgo = DateTime.now().subtract(Duration(days: 7));
+
+    for (int i = 0; i < systolicData.length; i++) {
+      if (i < diastolicData.length) {
+        final systolicReading = systolicData[i];
+        final diastolicReading = diastolicData[i];
+
+        if (systolicReading is Map &&
+            systolicReading['value'] != null &&
+            diastolicReading is Map &&
+            diastolicReading['value'] != null &&
+            systolicReading['date_from'] != null) {
+          final readingDate = DateTime.parse(systolicReading['date_from']);
+          if (readingDate.isAfter(oneWeekAgo)) {
+            systolicSum += systolicReading['value'].numericValue.toDouble();
+            diastolicSum += diastolicReading['value'].numericValue.toDouble();
+            count++;
+          }
+        }
+      }
+    }
+
+    String lastWeekAverage =
+        count > 0
+            ? '${(systolicSum / count).round()}/${(diastolicSum / count).round()}'
+            : '--/--';
+
+    // Calculate MAP (Mean Arterial Pressure)
+    double map =
+        count > 0 ? (systolicSum / count + 2 * (diastolicSum / count)) / 3 : 0;
+
+    // For pulse, we'll use the heart rate data if available
+    double pulse = 0;
+    if (healthData!['HealthDataType.HEART_RATE'] != null) {
+      final heartRateData = healthData!['HealthDataType.HEART_RATE'] as List;
+      if (heartRateData.isNotEmpty) {
+        final latestReading = heartRateData.last;
+        if (latestReading is Map && latestReading['value'] != null) {
+          pulse = latestReading['value'].numericValue.toDouble();
+        }
+      }
+    }
+
+    return {
+      'systolic': systolic,
+      'diastolic': diastolic,
+      'lastWeekAverage': lastWeekAverage,
+      'map': map.round(),
+      'pulse': pulse.round(),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Get the actual data for the widgets
+    final heartRateStats = _getHeartRateStats();
+    final bloodPressureStats = _getBloodPressureStats();
+    final heartRateChartData = _getHeartRateChartData();
+    final bloodPressureChartData = _getBloodPressureChartData();
+
+    final List<HealthMetric> sampleMetrics = [
+      HealthMetric(
+        image: "assets/images/heartbeat.svg",
+        iconColor: const Color(0xFF862633),
+        iconBackgroundColor: const Color.fromRGBO(134, 38, 51, 0.2),
+        title: 'Heart Rate',
+        timestamp: 'Today 10:23 Am',
+        value: (getHealthValue('HealthDataType.HEART_RATE')['data']),
+        unit: getHealthValue('HealthDataType.HEART_RATE')['unit'],
+        onTap: () => print('Heart Rate tapped'),
+      ),
+      HealthMetric(
+        image: "assets/images/ic5.svg",
+        iconColor: const Color(0xFF0074C4),
+        iconBackgroundColor: const Color.fromRGBO(0, 116, 196, 0.2),
+        title: 'Blood Pressure',
+        timestamp: 'Today 10:23 Am',
+        value:
+            (getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['data']),
+        unit: getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'],
+        onTap: () => print('Blood Pressure tapped'),
+      ),
+      HealthMetric(
+        image: "assets/images/ic6.svg",
+        iconColor: const Color(0xFF1A9B8E),
+        iconBackgroundColor: const Color.fromRGBO(26, 155, 142, 0.2),
+        title: 'Blood Glucose',
+        timestamp: 'Today 10:23 Am',
+        value: (getHealthValue('HealthDataType.BLOOD_GLUCOSE')['data']),
+        unit: getHealthValue('HealthDataType.BLOOD_GLUCOSE')['unit'],
+        onTap: () => print('Blood Glucose tapped'),
+      ),
+      HealthMetric(
+        image: "assets/images/ic7.png",
+        iconColor: const Color(0xFF2563EB),
+        iconBackgroundColor: const Color.fromRGBO(37, 99, 235, 0.2),
+        title: 'Oxygen (Spo2)',
+        timestamp: 'Today 10:23 Am',
+        value: (getHealthValue('HealthDataType.BLOOD_OXYGEN')['data']),
+        unit: getHealthValue('HealthDataType.BLOOD_OXYGEN')['unit'],
+        onTap: () => print('Oxygen tapped'),
+        isTrue: true,
+      ),
+    ];
+
+    return Scaffold(
+      appBar: CustomAppBar(
+        leftWidget: Row(
+          children: [
+            SvgPicture.asset('assets/images/Arrow.svg', width: 14, height: 14),
+            SizedBox(width: 4),
+            Text(
+              "Back",
+              style: TextStyle(
+                color: Color(0xFF862633),
+                fontSize: 17,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+        onLeftTap: () => Navigator.pop(context),
+        title: "Vitals & Measurements",
+        // rightWidget: Icon(Icons.more_vert, color: Colors.black),
+        backgroundColor: Colors.white,
+      ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "Current Vitals",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF000000),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "History",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF862633),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: HeartRateWidget(
+                title: 'Heart Rate',
+                currentHeartRate:
+                    (heartRateStats['current'] as num?)?.round() ?? 0,
+                unit: 'bpm',
+                status: 'Normal',
+                heartRateData: heartRateChartData,
+                minHeartRate: (heartRateStats['min'] as num?)?.round() ?? 0,
+                avgHeartRate: (heartRateStats['avg'] as num?)?.round() ?? 0,
+                maxHeartRate: (heartRateStats['max'] as num?)?.round() ?? 0,
+                restingHeartRate:
+                    (heartRateStats['resting'] as num?)?.round() ?? 0,
+                heartRateVariability:
+                    (heartRateStats['variability'] as num?)?.round() ?? 0,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: BloodPressureWidget(
+                title: 'Blood Pressure',
+                systolicValue:
+                    (bloodPressureStats['systolic'] as num?)?.round() ?? 0,
+                diastolicValue:
+                    (bloodPressureStats['diastolic'] as num?)?.round() ?? 0,
+                unit: 'mmHg',
+                status: 'Normal',
+                weeklyData: bloodPressureChartData,
+                lastWeekAverage: (
+  () {
+    final val = bloodPressureStats['lastWeekAverage'];
+    if (val is num) return val.round().toString();
+    if (val is String) return (double.tryParse(val)?.round() ?? 0).toString();
+    return '0';
+  }()
+),
+                lastReading: '2h ago',
+                mapValue: (bloodPressureStats['map'] as num?)?.round() ?? 0,
+                pulseValue: (bloodPressureStats['pulse'] as num?)?.round() ?? 0,
+              ),
+            ),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "Other Vital Metrics",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF000000),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF862633),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  ActivityStatCard(
+                    stat: ActivityStat(
+                      image: "assets/images/ic6.svg",
+                      imageColor: Color(0xFF1A9B8E),
+                      imageBackgroundColor: Color.fromRGBO(26, 155, 142, 0.2),
+                      title: "Blood Glucose",
+                      value:
+                          getHealthValue(
+                            'HealthDataType.BLOOD_GLUCOSE',
+                          )['data'],
+                      unit:
+                          getHealthValue(
+                            'HealthDataType.BLOOD_GLUCOSE',
+                          )['unit'],
+                      goalLabel: "Last reading: 4h ago",
+                      progress: 5.2 / 8.0,
+                    ),
+                  ),
+                  ActivityStatCard(
+                    stat: ActivityStat(
+                      image: "assets/images/ic7.png",
+                      imageColor: Color(0xFF2563EB),
+                      imageBackgroundColor: Color.fromRGBO(37, 99, 235, 0.2),
+                      title: "Oxygen(Sp02)",
+                      value:
+                          getHealthValue('HealthDataType.BLOOD_OXYGEN')['data'],
+                      unit:
+                          getHealthValue('HealthDataType.BLOOD_OXYGEN')['unit'],
+                      goalLabel: "Last reading: 2h ago",
+                      progress: 12 / 15,
+                      isTrue: true,
+                    ),
+                  ),
+                  ActivityStatCard(
+                    stat: ActivityStat(
+                      image: "assets/images/lungs.svg",
+                      imageColor: Color(0xFFFF1919),
+                      imageBackgroundColor: Color.fromRGBO(255, 25, 25, 0.2),
+                      title: "Respiratory Rate",
+                      value:
+                          getHealthValue(
+                            'HealthDataType.RESPIRATORY_RATE',
+                          )['data'],
+                      unit:
+                          getHealthValue(
+                            'HealthDataType.RESPIRATORY_RATE',
+                          )['unit'],
+                      goalLabel: "Last reading: 7h ago",
+                      progress: 5.2 / 8.0,
+                    ),
+                  ),
+                  ActivityStatCard(
+                    stat: ActivityStat(
+                      image: "assets/images/temp.svg",
+                      imageColor: Color(0xFF9333EA),
+                      imageBackgroundColor: Color.fromRGBO(147, 51, 234, 0.2),
+                      title: "Temperature",
+                      value:
+                          getHealthValue(
+                            'HealthDataType.BODY_TEMPERATURE',
+                          )['data'],
+                      unit:
+                          getHealthValue(
+                            'HealthDataType.BODY_TEMPERATURE',
+                          )['unit'],
+                      goalLabel: "Last reading: 6h ago",
+                      progress: 12 / 15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "Body Measurement",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF000000),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "Updates",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF862633),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: BodyMetricsWidget(
+                primaryMetrics: [
+                  BodyMetric(
+                    label: 'Weight',
+                    value: getHealthValue('HealthDataType.WEIGHT')['data'],
+                    unit: getHealthValue('HealthDataType.WEIGHT')['unit'],
+                    changeText: '+ 0.5 from last week',
+                    changeColor: const Color(0xFF4CAF50),
+                  ),
+                  BodyMetric(
+                    label: 'Height',
+                    value: getHealthValue('HealthDataType.HEIGHT')['data'],
+                    unit: getHealthValue('HealthDataType.HEIGHT')['unit'],
+                    additionalInfo: 'Last Update 3 mon ago',
+                    additionalInfoColor: Colors.grey[600],
+                  ),
+                ],
+                secondaryMetrics: [
+                  BodyMetric(
+                    label: 'BMI',
+                    value:
+                        getHealthValue(
+                          'HealthDataType.BODY_MASS_INDEX',
+                        )['data'],
+                    status: 'Normal',
+                    statusColor: const Color(0xFF4CAF50),
+                  ),
+                  BodyMetric(
+                    label: 'Calories',
+                    value:
+                        getHealthValue(
+                          'HealthDataType.TOTAL_CALORIES_BURNED',
+                        )['data'],
+                    unit: "",
+                    status: 'Normal',
+                    statusColor: const Color(0xFF4CAF50),
+                  ),
+                  BodyMetric(
+                    label: 'Body Fat',
+                    value:
+                        getHealthValue(
+                          'HealthDataType.BODY_FAT_PERCENTAGE',
+                        )['data'],
+                    unit:
+                        getHealthValue(
+                          'HealthDataType.BODY_FAT_PERCENTAGE',
+                        )['unit'],
+                    additionalInfo: '76.1%',
+                    additionalInfoColor: Colors.grey[600],
+                  ),
+                ],
+                tertiaryMetrics: [
+                  BodyMetric(
+                    label: 'Bone Mass',
+                    value: ((double.tryParse(
+                                  getHealthValue(
+                                    'HealthDataType.WEIGHT',
+                                  )['data'].toString(),
+                                ) ??
+                                0.0) *
+                            0.12)
+                        .toStringAsFixed(1),
+                    unit: getHealthValue('HealthDataType.WEIGHT')['unit'],
+                  ),
+                  BodyMetric(
+                    label: 'Water',
+                    value: (getHealthValue('HealthDataType.WATER')['data']),
+                    unit: getHealthValue('HealthDataType.WATER')['unit'],
+                  ),
+                  BodyMetric(
+                    label: 'Heart Rate',
+                    value:
+                        (getHealthValue('HealthDataType.HEART_RATE')['data']),
+                    unit: getHealthValue('HealthDataType.HEART_RATE')['unit'],
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "Recent Reading",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF000000),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    "See All",
+                    style: GoogleFonts.inter(
+                      color: Color(0xFF862633),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: HealthMetricsListWidget(metrics: sampleMetrics),
+            ),
+            SizedBox(height: 24),
+          ],
+        ),
+      ),
+      floatingActionButton: SizedBox(
+        width: 70,
+        height: 70,
+        child: IconButton(
+          icon: const Icon(
+            Icons.add_circle,
+            size: 70,
+            color: Color(0xFF862633),
+          ),
+          onPressed: () {},
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
+    );
+  }
+}
