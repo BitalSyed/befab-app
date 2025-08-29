@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:befab/services/health_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -10,6 +11,7 @@ import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/InputBox.dart';
 import 'package:befab/components/ProgressSwitchRow.dart';
 import 'package:befab/components/StepsChart.dart';
+import 'package:intl/intl.dart';
 
 class NewGoalPage extends StatefulWidget {
   const NewGoalPage({Key? key}) : super(key: key);
@@ -19,11 +21,118 @@ class NewGoalPage extends StatefulWidget {
 }
 
 class _NewGoalPageState extends State<NewGoalPage> {
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 👇 FIX: Only run after widget tree is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadHealthData();
+    });
+  }
+
+  final HealthService healthService = HealthService();
+  Map<String, dynamic>? healthData;
+
+   Future<void> _loadHealthData() async {
+    bool isInstalled = await healthService.isHealthAppInstalled();
+    if (!isInstalled) {
+      healthService.suggestInstallHealthApp(context);
+      return;
+    }
+
+    bool authorized = await healthService.requestAuthorization();
+    debugPrint("$authorized");
+    if (!authorized) {
+      debugPrint("❌ Health permissions denied!");
+      return;
+    }
+
+    Map<String, dynamic> data = await healthService.fetchAllData(
+      from: DateTime.now().subtract(const Duration(days: 30)),
+      to: DateTime.now(),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      healthData = data;
+    });
+
+    // sendData(data);
+
+    debugPrint("✅ Platform: ${healthService.getPlatform()}");
+    // debugPrint(
+    //   "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')}",
+    // );
+  }
+
+
+Map<String, dynamic> calculateHealthDataTotal(
+  Map<String, dynamic> healthData,
+  String dataType,
+  DateTime targetDate,
+) {
+  // Check if the data type exists in the health data
+  if (!healthData.containsKey(dataType)) {
+    return {'total': 0, 'unit': 'UNKNOWN'};
+  }
+
+  final List<dynamic> dataList = healthData[dataType];
+  double total = 0;
+  String unit = 'UNKNOWN';
+
+  // Format the target date to match the format in the data (YYYY-MM-DD)
+  final DateFormat dateFormat = DateFormat('yyyy-MM-dd');
+  final String targetDateString = dateFormat.format(targetDate);
+
+  for (final dataEntry in dataList) {
+    try {
+      final String dateFrom = dataEntry['dateFrom'];
+      
+      // Extract just the date part (YYYY-MM-DD) from the timestamp
+      final String entryDate = dateFrom.split('T')[0];
+      
+      // Check if this entry matches the target date
+      if (entryDate == targetDateString) {
+        final dynamic value = dataEntry['value'];
+        final String currentUnit = dataEntry['unit'];
+        
+        // Update unit (should be consistent for same data type)
+        unit = currentUnit;
+        
+        // Extract numeric value
+        if (value is Map<String, dynamic> && value.containsKey('numericValue')) {
+          final dynamic numericValue = value['numericValue'];
+          if (numericValue is num) {
+            total += numericValue.toDouble();
+          }
+        }
+      }
+    } catch (e) {
+      // Skip malformed entries
+      continue;
+    }
+  }
+
+  return {
+    'total': total,
+    'unit': unit,
+  };
+}
+
   final TextEditingController goalController = TextEditingController();
   final TextEditingController monthsController = TextEditingController();
   final TextEditingController milestoneController = TextEditingController();
+  String? selectedCategory; // For dropdown selection
 
-  bool trackProgress = true; // from ProgressSwitchRow (you can bind later)
+  bool trackProgress = true;
+  final List<String> categories = [
+    'Steps',
+    'Distance',
+    'Calories Burned',
+    'Calories Taken'
+  ];
 
   @override
   void dispose() {
@@ -34,65 +143,77 @@ class _NewGoalPageState extends State<NewGoalPage> {
   }
 
   // create storage instance (at class level)
-final storage = const FlutterSecureStorage();
+  final storage = const FlutterSecureStorage();
 
-Future<void> _setGoal() async {
-  final String? baseUrl = dotenv.env['BACKEND_URL'];
-  if (baseUrl == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("BACKEND_URL not set")),
-    );
-    return;
-  }
-
-  try {
-    // get token from secure storage
-    final token = await storage.read(key: "token");
-    if (token == null) {
+  Future<void> _setGoal() async {
+    final String? baseUrl = dotenv.env['BACKEND_URL'];
+    if (baseUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No token found, please login again.")),
+        const SnackBar(content: Text("Server Error")),
       );
       return;
     }
 
-    final response = await http.post(
-      Uri.parse("$baseUrl/app/goals"),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer $token",
-      },
-      body: jsonEncode({
-        "name": goalController.text.trim(),
-        "durationDays": int.tryParse(monthsController.text.trim()) ?? 0,
-        "milestones": milestoneController.text.trim(),
-        "trackProgress": trackProgress, // make sure this is defined in your state
-      }),
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      // Reset fields
-      goalController.clear();
-      monthsController.clear();
-      milestoneController.clear();
-
-      // Navigate to dashboard
-      if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        "/dashboard",
-        (route) => false,
-      );
-    } else {
+    // Validate category selection
+    if (selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed: ${response.body}")),
+        const SnackBar(content: Text("Please select a category")),
+      );
+      return;
+    }
+
+    try {
+      // get token from secure storage
+      final token = await storage.read(key: "token");
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Session Expired, please login again.")),
+        );
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse("$baseUrl/app/goals"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({
+          "name": goalController.text.trim(),
+          "durationDays": int.tryParse(monthsController.text.trim()) ?? 0,
+          "milestones": milestoneController.text.trim(),
+          "category": selectedCategory, // Add category to the request
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Reset fields
+        goalController.clear();
+        monthsController.clear();
+        milestoneController.clear();
+        setState(() {
+          selectedCategory = null;
+        });
+
+        // Navigate to dashboard
+        if (!mounted) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          "/dashboard",
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed: ${response.body}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
       );
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Error: $e")),
-    );
   }
-}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,27 +269,69 @@ Future<void> _setGoal() async {
                 controller: milestoneController,
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                "Get Personalized Tips",
-                style: TextStyle(fontWeight: FontWeight.bold),
+            // New Category Dropdown
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Category",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButton<String>(
+                      value: selectedCategory,
+                      isExpanded: true,
+                      underline: const SizedBox(), // Remove default underline
+                      hint: const Text('Select a category'),
+                      items: categories.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedCategory = newValue;
+                        });
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
-            ProgressSwitchRow(), // later bind this to `trackProgress`
+            // const Padding(
+            //   padding: EdgeInsets.all(8.0),
+            //   child: Text(
+            //     "Get Personalized Tips",
+            //     style: TextStyle(fontWeight: FontWeight.bold),
+            //   ),
+            // ),
+            // ProgressSwitchRow(), // later bind this to `trackProgress`
 
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text("Steps in 20 days"),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                "10k",
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24),
-              ),
-            ),
-            const StepsChart(),
+            // const Padding(
+            //   padding: EdgeInsets.all(8.0),
+            //   child: Text("Steps in 20 days"),
+            // ),
+            // const Padding(
+            //   padding: EdgeInsets.all(8.0),
+            //   child: Text(
+            //     "10k",
+            //     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 24),
+            //   ),
+            // ),
+            // const StepsChart(),
 
             ElevatedButton(
               style: ElevatedButton.styleFrom(

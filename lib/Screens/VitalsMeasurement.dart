@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:befab/charts/BloodPressureWidget.dart';
 import 'package:befab/components/ActivityStatCard.dart';
 import 'package:befab/components/BodyMetricsWidget.dart';
@@ -6,10 +8,13 @@ import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/HealthMetricsListWidget.dart';
 import 'package:befab/components/HeartRateWidget.dart';
 import 'package:befab/services/health_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // Ensure this import is at the top
-
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class VitalsMeasurement extends StatefulWidget {
   @override
@@ -23,11 +28,194 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
   @override
   void initState() {
     super.initState();
-
+getData();
     // 👇 FIX: Only run after widget tree is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadHealthData();
     });
+  }
+
+  Future<Map<String, dynamic>?> fetchNutritionData() async {
+    try {
+      // Get backend URL
+      final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
+      if (backendUrl.isEmpty) {
+        print("⚠️ BACKEND_URL is empty in .env");
+        return null;
+      }
+
+      // Get token from secure storage
+      final storage = FlutterSecureStorage();
+      final token = await storage.read(key: 'token');
+      if (token == null) {
+        print("⚠️ No auth token found in storage");
+        return null;
+      }
+
+      // Get current date in YYYY-MM-DD format
+      final String currentDate = DateFormat(
+        'yyyy-MM-dd',
+      ).format(DateTime.now());
+
+      // Build full URL
+      final String url = '$backendUrl/app/nutrition/${currentDate}';
+      final String url1 = '$backendUrl/app/nutrition/get/foods';
+      print("Fetching nutrition data from: $url");
+
+      // Make GET request with Authorization header
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      final response1 = await http.get(
+        Uri.parse(url1),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response1.statusCode == 200) {
+        List<dynamic> data = jsonDecode(
+          response1.body,
+        ); // backend returns a list
+        print("✅ Foods: $data");
+        foods = data; // store the list directly
+      }
+
+      if (response.statusCode == 200) {
+        Map<String, dynamic> data = jsonDecode(response.body);
+        print("✅ Nutrition data fetched successfully");
+        return data;
+      } else {
+        print('⚠️ Failed to fetch data. Status code: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error fetching nutrition data: $e');
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? nutritionData;
+  List<dynamic> foods = [];
+
+  int totalCaloriesBreakfast = 0;
+  int totalCaloriesLunch = 0;
+  int totalCaloriesDinner = 0;
+  int totalCaloriesSnacks = 0;
+  int totalCaloriesOther = 0;
+  int totalP = 0;
+  int totalF = 0;
+  int totalC = 0;
+  int totalCaloriesAll = 0;
+  double totalWaterLiters = 0.0;
+
+  /// Call this with your nutritionData to update all totals
+  void updateNutritionTotals(Map<String, dynamic> nutritionData) {
+    if (nutritionData.isEmpty) return;
+
+    final meals = nutritionData['meals'] as Map<String, dynamic>? ?? {};
+    final waterIntakeOz = nutritionData['waterIntake_oz'] ?? 0;
+
+    int sumCalories(List<dynamic> items) {
+      return items.fold(0, (sum, item) {
+        final qty = (item['quantity'] ?? 1) as num;
+        final cal = (item['calories'] ?? 0) as num;
+        return sum + (cal * qty).toInt();
+      });
+    }
+
+    int sumP(List<dynamic> items) {
+      return items.fold(0, (sum, item) {
+        final qty = (item['quantity'] ?? 1) as num;
+        final val = item['protein_g'];
+        final p =
+            (val is num
+                ? val.toDouble()
+                : double.tryParse(val?.toString() ?? "0") ?? 0);
+        return sum + (p * qty).toInt();
+      });
+    }
+
+    int sumF(List<dynamic> items) {
+      return items.fold(0, (sum, item) {
+        final qty = (item['quantity'] ?? 1) as num;
+        final val = item['fat_g'];
+        final f =
+            (val is num
+                ? val.toDouble()
+                : double.tryParse(val?.toString() ?? "0") ?? 0);
+        return sum + (f * qty).toInt();
+      });
+    }
+
+    int sumC(List<dynamic> items) {
+      return items.fold(0, (sum, item) {
+        final qty = (item['quantity'] ?? 1) as num;
+        final val = item['carbs_g'];
+        final c =
+            (val is num
+                ? val.toDouble()
+                : double.tryParse(val?.toString() ?? "0") ?? 0);
+        return sum + (c * qty).toInt();
+      });
+    }
+
+    totalCaloriesBreakfast = sumCalories(meals['breakfast'] ?? []);
+    totalCaloriesLunch = sumCalories(meals['lunch'] ?? []);
+    totalCaloriesDinner = sumCalories(meals['dinner'] ?? []);
+    totalCaloriesSnacks = sumCalories(meals['snacks'] ?? []);
+    totalCaloriesOther = sumCalories(meals['other'] ?? []);
+    totalCaloriesAll =
+        totalCaloriesBreakfast +
+        totalCaloriesLunch +
+        totalCaloriesDinner +
+        totalCaloriesSnacks +
+        totalCaloriesOther;
+
+    totalF =
+        sumF(meals['breakfast'] ?? []) +
+        sumF(meals['lunch'] ?? []) +
+        sumF(meals['dinner'] ?? []) +
+        sumF(meals['snacks'] ?? []);
+    totalP =
+        sumP(meals['breakfast'] ?? []) +
+        sumP(meals['lunch'] ?? []) +
+        sumP(meals['dinner'] ?? []) +
+        sumP(meals['snacks'] ?? []);
+    totalC =
+        sumC(meals['breakfast'] ?? []) +
+        sumC(meals['lunch'] ?? []) +
+        sumC(meals['dinner'] ?? []) +
+        sumC(meals['snacks'] ?? []);
+
+    totalWaterLiters = (waterIntakeOz as num) / 1000;
+
+    setState(() {
+    });
+
+    // print('🍳 Breakfast: $totalCaloriesBreakfast');
+    // print('🥪 Lunch: $totalCaloriesLunch');
+    // print('🍽 Dinner: $totalCaloriesDinner');
+    // print('🍿 Snacks: $totalCaloriesSnacks');
+    // print('⚡ Total Calories: $totalCaloriesAll');
+    // print('💧 Water: ${totalWaterLiters.toStringAsFixed(2)} L');
+  }
+
+  void getData() async {
+    final data = await fetchNutritionData();
+    if (data != null) {
+      setState(() {
+        // <-- REBUILD UI
+        nutritionData = data; // update class-level variable
+        updateNutritionTotals(nutritionData!);
+        print("data_nutrition: $nutritionData");
+      });
+    }
   }
 
   Future<void> _loadHealthData() async {
@@ -157,6 +345,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
     "HEIGHT": "m",
     "BEATS_PER_MINUTE": "bpm",
     "PERCENT": "%",
+    "DEGREE_CELSIUS": "C",
   };
 
   // --- Your function remains unchanged except mapping unit at the end ---
@@ -219,6 +408,78 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
 
     return {"data": formatted, "unit": outUnit};
   }
+
+Map<String, dynamic> getHealthValue1(
+  String type, {
+  int decimalsIfDouble = 2,
+  bool convertMetersToKm = false,
+}) {
+  if (healthData == null) return {"data": "--", "unit": ""};
+
+  final raw = healthData![type];
+  if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
+
+  // Get today's date in YYYY-MM-DD format
+  final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+  // --- pick the most common unit present in the list ---
+  String _resolveUnit(List list) {
+    final counts = <String, int>{};
+    for (final e in list) {
+      if (e is Map) {
+        String? u;
+        if (e['unit'] is String) {
+          u = e['unit'] as String;
+        }
+        if (u != null && u.isNotEmpty) {
+          counts[u] = (counts[u] ?? 0) + 1;
+        }
+      }
+    }
+    if (counts.isEmpty) return '';
+    return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+  }
+
+  final unitFromData = _resolveUnit(raw);
+
+  // --- sum numeric values for TODAY only ---
+  num total = 0;
+
+  for (final e in raw) {
+    if (e is! Map) continue;
+
+    // Check if the entry is from today
+    final dateFrom = e['dateFrom'];
+    if (dateFrom is! String || !dateFrom.contains(today)) {
+      continue; // Skip entries not from today
+    }
+
+    final value = e['value'];
+    if (value != null && value is Map) {
+      final numericValue = value['numericValue'];
+      if (numericValue is num) {
+        total += numericValue;
+      }
+    }
+  }
+
+  // optional unit conversion
+  String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
+  if (convertMetersToKm && unitFromData == "METER") {
+    total = total / 1000;
+    outUnit = "km";
+  }
+
+  // format nicely
+  String formatted;
+  if (total % 1 == 0) {
+    formatted = total.toInt().toString();
+  } else {
+    formatted = total.toStringAsFixed(decimalsIfDouble);
+  }
+
+  return {"data": formatted, "unit": outUnit};
+}
 
   // Helper method to get heart rate data for the chart
   List<HeartRateData> _getHeartRateChartData() {
@@ -538,9 +799,9 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
         iconColor: const Color(0xFF862633),
         iconBackgroundColor: const Color.fromRGBO(134, 38, 51, 0.2),
         title: 'Heart Rate',
-        timestamp: 'Today 10:23 Am',
-        value: (getHealthValue('HealthDataType.HEART_RATE')['data']),
-        unit: getHealthValue('HealthDataType.HEART_RATE')['unit'],
+        timestamp: '',
+        value: (getHealthValue1('HealthDataType.HEART_RATE')['data']),
+        unit: getHealthValue1('HealthDataType.HEART_RATE')['unit'],
         onTap: () => print('Heart Rate tapped'),
       ),
       HealthMetric(
@@ -548,10 +809,10 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
         iconColor: const Color(0xFF0074C4),
         iconBackgroundColor: const Color.fromRGBO(0, 116, 196, 0.2),
         title: 'Blood Pressure',
-        timestamp: 'Today 10:23 Am',
+        timestamp: '',
         value:
-            (getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['data']),
-        unit: getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'],
+            (getHealthValue1('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['data']),
+        unit: getHealthValue1('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'],
         onTap: () => print('Blood Pressure tapped'),
       ),
       HealthMetric(
@@ -559,9 +820,9 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
         iconColor: const Color(0xFF1A9B8E),
         iconBackgroundColor: const Color.fromRGBO(26, 155, 142, 0.2),
         title: 'Blood Glucose',
-        timestamp: 'Today 10:23 Am',
-        value: (getHealthValue('HealthDataType.BLOOD_GLUCOSE')['data']),
-        unit: getHealthValue('HealthDataType.BLOOD_GLUCOSE')['unit'],
+        timestamp: '',
+        value: (getHealthValue1('HealthDataType.BLOOD_GLUCOSE')['data']),
+        unit: getHealthValue1('HealthDataType.BLOOD_GLUCOSE')['unit'],
         onTap: () => print('Blood Glucose tapped'),
       ),
       HealthMetric(
@@ -569,9 +830,9 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
         iconColor: const Color(0xFF2563EB),
         iconBackgroundColor: const Color.fromRGBO(37, 99, 235, 0.2),
         title: 'Oxygen (Spo2)',
-        timestamp: 'Today 10:23 Am',
-        value: (getHealthValue('HealthDataType.BLOOD_OXYGEN')['data']),
-        unit: getHealthValue('HealthDataType.BLOOD_OXYGEN')['unit'],
+        timestamp: '',
+        value: (getHealthValue1('HealthDataType.BLOOD_OXYGEN')['data']),
+        unit: getHealthValue1('HealthDataType.BLOOD_OXYGEN')['unit'],
         onTap: () => print('Oxygen tapped'),
         isTrue: true,
       ),
@@ -666,7 +927,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
     return '0';
   }()
 ),
-                lastReading: '2h ago',
+                lastReading: '',
                 mapValue: (bloodPressureStats['map'] as num?)?.round() ?? 0,
                 pulseValue: (bloodPressureStats['pulse'] as num?)?.round() ?? 0,
               ),
@@ -722,7 +983,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                           getHealthValue(
                             'HealthDataType.BLOOD_GLUCOSE',
                           )['unit'],
-                      goalLabel: "Last reading: 4h ago",
+                      goalLabel: "",
                       progress: 5.2 / 8.0,
                     ),
                   ),
@@ -736,7 +997,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                           getHealthValue('HealthDataType.BLOOD_OXYGEN')['data'],
                       unit:
                           getHealthValue('HealthDataType.BLOOD_OXYGEN')['unit'],
-                      goalLabel: "Last reading: 2h ago",
+                      goalLabel: "",
                       progress: 12 / 15,
                       isTrue: true,
                     ),
@@ -755,7 +1016,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                           getHealthValue(
                             'HealthDataType.RESPIRATORY_RATE',
                           )['unit'],
-                      goalLabel: "Last reading: 7h ago",
+                      goalLabel: "",
                       progress: 5.2 / 8.0,
                     ),
                   ),
@@ -773,7 +1034,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                           getHealthValue(
                             'HealthDataType.BODY_TEMPERATURE',
                           )['unit'],
-                      goalLabel: "Last reading: 6h ago",
+                      goalLabel: "",
                       progress: 12 / 15,
                     ),
                   ),
@@ -794,17 +1055,17 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    "Updates",
-                    style: GoogleFonts.inter(
-                      color: Color(0xFF862633),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
+                // Padding(
+                //   padding: const EdgeInsets.all(16.0),
+                //   child: Text(
+                //     "Updates",
+                //     style: GoogleFonts.inter(
+                //       color: Color(0xFF862633),
+                //       fontSize: 16,
+                //       fontWeight: FontWeight.w400,
+                //     ),
+                //   ),
+                // ),
               ],
             ),
             Padding(
@@ -815,7 +1076,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                     label: 'Weight',
                     value: getHealthValue('HealthDataType.WEIGHT')['data'],
                     unit: getHealthValue('HealthDataType.WEIGHT')['unit'],
-                    changeText: '+ 0.5 from last week',
+                    changeText: '',
                     changeColor: const Color(0xFF4CAF50),
                   ),
                   BodyMetric(
@@ -833,17 +1094,17 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                         getHealthValue(
                           'HealthDataType.BODY_MASS_INDEX',
                         )['data'],
-                    status: 'Normal',
+                    status: '',
                     statusColor: const Color(0xFF4CAF50),
                   ),
                   BodyMetric(
                     label: 'Calories',
                     value:
-                        getHealthValue(
+                        getHealthValue1(
                           'HealthDataType.TOTAL_CALORIES_BURNED',
                         )['data'],
                     unit: "",
-                    status: 'Normal',
+                    status: '',
                     statusColor: const Color(0xFF4CAF50),
                   ),
                   BodyMetric(
@@ -875,14 +1136,14 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                   ),
                   BodyMetric(
                     label: 'Water',
-                    value: (getHealthValue('HealthDataType.WATER')['data']),
-                    unit: getHealthValue('HealthDataType.WATER')['unit'],
+                    value: (totalWaterLiters).toStringAsFixed(1),
+                    unit: "L",
                   ),
                   BodyMetric(
                     label: 'Heart Rate',
                     value:
-                        (getHealthValue('HealthDataType.HEART_RATE')['data']),
-                    unit: getHealthValue('HealthDataType.HEART_RATE')['unit'],
+                        (getHealthValue1('HealthDataType.HEART_RATE')['data']),
+                    unit: getHealthValue1('HealthDataType.HEART_RATE')['unit'],
                   ),
                 ],
               ),
@@ -901,17 +1162,17 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    "See All",
-                    style: GoogleFonts.inter(
-                      color: Color(0xFF862633),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
+                // Padding(
+                //   padding: const EdgeInsets.all(16.0),
+                //   child: Text(
+                //     "See All",
+                //     style: GoogleFonts.inter(
+                //       color: Color(0xFF862633),
+                //       fontSize: 16,
+                //       fontWeight: FontWeight.w400,
+                //     ),
+                //   ),
+                // ),
               ],
             ),
             Padding(

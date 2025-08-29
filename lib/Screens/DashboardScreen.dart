@@ -36,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadHealthData();
     });
+    loadGoals();
     data = getDWMPercentagesForStepsAndDistance();
   }
 
@@ -327,6 +328,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<List<dynamic>?> fetchGoalsData() async {
+    try {
+      // Get backend URL
+      final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
+      if (backendUrl.isEmpty) {
+        print("⚠️ BACKEND_URL is empty in .env");
+        return null;
+      }
+
+      // Get token from secure storage
+      final storage = FlutterSecureStorage();
+      final token = await storage.read(key: 'token');
+      if (token == null) {
+        print("⚠️ No auth token found in storage");
+        return null;
+      }
+
+      // Build full URL
+      final String url = '$backendUrl/app/goals';
+      print("Fetching goals data from: $url");
+
+      // Make GET request with Authorization header
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = jsonDecode(response.body);
+        print("✅ Goals data fetched successfully");
+        print("📊 Number of goals: ${data.length}");
+        return data;
+      } else {
+        print(
+          '⚠️ Failed to fetch goals data. Status code: ${response.statusCode}',
+        );
+        print('Response body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error fetching goals data: $e');
+      return null;
+    }
+  }
+
+  // Usage example:
+  List<dynamic> goals = []; // Variable to store goals
+
+  void loadGoals() async {
+    final goalsData = await fetchGoalsData();
+    if (goalsData != null) {
+      goals = goalsData;
+      print("🎯 Goals loaded: ${goals.length}");
+    } else {
+      print("❌ Failed to load goals");
+    }
+  }
+
   Map<String, dynamic>? nutritionData;
   List<dynamic> foods = [];
 
@@ -474,44 +536,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                            ),
-                            child: _buildGoalRow(
-                              "Goal Title",
-                              "Description",
-                              "30%",
-                            ),
+                          Column(
+                            children:
+                                goals.map((goal) {
+                                  return Column(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16.0,
+                                        ),
+                                        child: _buildGoalRow(
+                                          goal["name"] ?? "Goal Title",
+                                          "Duration: ${goal["durationDays"]} days",
+                                          "${goal["progressPercent"]}%",
+                                        ),
+                                      ),
+                                      const Divider(thickness: 0.5),
+                                    ],
+                                  );
+                                }).toList(),
                           ),
-                          const Divider(thickness: 0.5),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                            ),
-                            child: _buildGoalRow(
-                              "Goal Title",
-                              "Description",
-                              "50%",
-                            ),
-                          ),
-                          const Divider(thickness: 0.5),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 8.0,
-                                right: 8,
-                              ),
-                              child: const Text(
-                                "view all",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                          ),
+                          // const Divider(thickness: 0.5),
+                          // Align(
+                          //   alignment: Alignment.centerRight,
+                          //   child: Padding(
+                          //     padding: const EdgeInsets.only(
+                          //       bottom: 8.0,
+                          //       right: 8,
+                          //     ),
+                          //     child: const Text(
+                          //       "view all",
+                          //       style: TextStyle(
+                          //         fontSize: 12,
+                          //         color: Colors.black,
+                          //       ),
+                          //     ),
+                          //   ),
+                          // ),
                         ],
                       ),
                     ),
@@ -792,15 +853,18 @@ Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
   return StatefulBuilder(
     builder: (BuildContext context, StateSetter setState) {
       // Calculate percentages for each time period
-      final daily = ((percentages?["STEPS"]?["daily"] ?? 0) +
+      final daily =
+          ((percentages?["STEPS"]?["daily"] ?? 0) +
               (percentages?["DISTANCE_DELTA"]?["daily"] ?? 0)) /
           2;
 
-      final weekly = ((percentages?["STEPS"]?["weekly"] ?? 0) +
+      final weekly =
+          ((percentages?["STEPS"]?["weekly"] ?? 0) +
               (percentages?["DISTANCE_DELTA"]?["weekly"] ?? 0)) /
           2;
 
-      final monthly = ((percentages?["STEPS"]?["monthly"] ?? 0) +
+      final monthly =
+          ((percentages?["STEPS"]?["monthly"] ?? 0) +
               (percentages?["DISTANCE_DELTA"]?["monthly"] ?? 0)) /
           2;
 
@@ -849,21 +913,21 @@ Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
               Row(
                 children: [
                   _buildSegmentButton(
-                    "Daily", 
-                    selectedPeriod == "Daily", 
-                    onTap: () => selectPeriod("Daily")
+                    "Daily",
+                    selectedPeriod == "Daily",
+                    onTap: () => selectPeriod("Daily"),
                   ),
                   const SizedBox(width: 12),
                   _buildSegmentButton(
-                    "Weekly", 
-                    selectedPeriod == "Weekly", 
-                    onTap: () => selectPeriod("Weekly")
+                    "Weekly",
+                    selectedPeriod == "Weekly",
+                    onTap: () => selectPeriod("Weekly"),
                   ),
                   const SizedBox(width: 12),
                   _buildSegmentButton(
-                    "Monthly", 
-                    selectedPeriod == "Monthly", 
-                    onTap: () => selectPeriod("Monthly")
+                    "Monthly",
+                    selectedPeriod == "Monthly",
+                    onTap: () => selectPeriod("Monthly"),
                   ),
                 ],
               ),
@@ -917,7 +981,8 @@ Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
                         ],
                       ),
                       Positioned(
-                        left: progress * MediaQuery.of(context).size.width * 0.72,
+                        left:
+                            progress * MediaQuery.of(context).size.width * 0.72,
                         child: Text(
                           "${(percentage).round()}%",
                           style: GoogleFonts.inter(
@@ -947,7 +1012,11 @@ Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
   );
 }
 
-Widget _buildSegmentButton(String text, bool isSelected, {VoidCallback? onTap}) {
+Widget _buildSegmentButton(
+  String text,
+  bool isSelected, {
+  VoidCallback? onTap,
+}) {
   return GestureDetector(
     onTap: onTap,
     child: Container(
@@ -955,10 +1024,7 @@ Widget _buildSegmentButton(String text, bool isSelected, {VoidCallback? onTap}) 
       decoration: BoxDecoration(
         color: isSelected ? const Color(0xFF862633) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF862633),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFF862633), width: 1),
       ),
       child: Text(
         text,

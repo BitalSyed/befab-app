@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/intl.dart';
 
 class ActivityFitness extends StatefulWidget {
   @override
@@ -159,66 +160,77 @@ class _ActivityFitnessState extends State<ActivityFitness> {
   };
 
   // --- Your function remains unchanged except mapping unit at the end ---
-  Map<String, dynamic> getHealthValue(
-    String type, {
-    int decimalsIfDouble = 2,
-    bool convertMetersToKm = false,
-  }) {
-    if (healthData == null) return {"data": "--", "unit": ""};
+ Map<String, dynamic> getHealthValue(
+  String type, {
+  int decimalsIfDouble = 2,
+  bool convertMetersToKm = false,
+}) {
+  if (healthData == null) return {"data": "--", "unit": ""};
 
-    final raw = healthData![type];
-    if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
+  final raw = healthData![type];
+  if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
 
-    // --- pick the most common unit present in the list ---
-    String _resolveUnit(List list) {
-      final counts = <String, int>{};
-      for (final e in list) {
-        if (e is Map) {
-          String? u;
-          if (e['unit'] is String) {
-            u = e['unit'] as String;
-          }
-          if (u != null && u.isNotEmpty) {
-            counts[u] = (counts[u] ?? 0) + 1;
-          }
+  // Get today's date in YYYY-MM-DD format
+  final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+  // --- pick the most common unit present in the list ---
+  String _resolveUnit(List list) {
+    final counts = <String, int>{};
+    for (final e in list) {
+      if (e is Map) {
+        String? u;
+        if (e['unit'] is String) {
+          u = e['unit'] as String;
+        }
+        if (u != null && u.isNotEmpty) {
+          counts[u] = (counts[u] ?? 0) + 1;
         }
       }
-      if (counts.isEmpty) return '';
-      return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
     }
-
-    final unitFromData = _resolveUnit(raw);
-
-    // --- sum numeric values ---
-    num total = 0;
-
-    for (final e in raw) {
-      if (e is! Map) continue;
-
-      final value = e['value'];
-      if (value != null) {
-        total += value.numericValue;
-      }
-    }
-
-    // optional unit conversion
-    String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
-    if (convertMetersToKm && unitFromData == "METER") {
-      total = total / 1000;
-      outUnit = "km";
-    }
-
-    // format nicely
-    String formatted;
-    if (total % 1 == 0) {
-      formatted = total.toInt().toString();
-    } else {
-      formatted = total.toStringAsFixed(decimalsIfDouble);
-    }
-
-    return {"data": formatted, "unit": outUnit};
+    if (counts.isEmpty) return '';
+    return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
   }
 
+  final unitFromData = _resolveUnit(raw);
+
+  // --- sum numeric values for TODAY only ---
+  num total = 0;
+
+  for (final e in raw) {
+    if (e is! Map) continue;
+
+    // Check if the entry is from today
+    final dateFrom = e['dateFrom'];
+    if (dateFrom is! String || !dateFrom.contains(today)) {
+      continue; // Skip entries not from today
+    }
+
+    final value = e['value'];
+    if (value != null && value is Map) {
+      final numericValue = value['numericValue'];
+      if (numericValue is num) {
+        total += numericValue;
+      }
+    }
+  }
+
+  // optional unit conversion
+  String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
+  if (convertMetersToKm && unitFromData == "METER") {
+    total = total / 1000;
+    outUnit = "km";
+  }
+
+  // format nicely
+  String formatted;
+  if (total % 1 == 0) {
+    formatted = total.toInt().toString();
+  } else {
+    formatted = total.toStringAsFixed(decimalsIfDouble);
+  }
+
+  return {"data": formatted, "unit": outUnit};
+}
   final storage = FlutterSecureStorage();
 
   Future<void> fetchGoal() async {
@@ -234,7 +246,7 @@ class _ActivityFitnessState extends State<ActivityFitness> {
     }
 
     final response = await http.get(
-      Uri.parse("$baseUrl/app/goals/current"),
+      Uri.parse("$baseUrl/app/goals/current?q=Steps"),
       headers: {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json",
