@@ -18,11 +18,38 @@ class GroupsPage extends StatefulWidget {
 
 class _GroupsPageState extends State<GroupsPage> {
   late Future<List<Map<String, dynamic>>> _groupsFuture;
+  List<Map<String, dynamic>> _allGroups = [];
+  List<Map<String, dynamic>> _filteredGroups = [];
+  TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _groupsFuture = fetchGroups();
+    _searchController.addListener(_filterGroups);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterGroups() {
+    final query = _searchController.text.toLowerCase();
+    
+    if (query.isEmpty) {
+      setState(() {
+        _filteredGroups = List.from(_allGroups);
+      });
+    } else {
+      setState(() {
+        _filteredGroups = _allGroups.where((group) {
+          final name = group['name']?.toString().toLowerCase() ?? '';
+          return name.contains(query);
+        }).toList();
+      });
+    }
   }
 
   /// 🔑 Get headers with token
@@ -55,9 +82,16 @@ class _GroupsPageState extends State<GroupsPage> {
         throw Exception("Unexpected groups format: $data");
       }
 
-      return groups.map<Map<String, dynamic>>((g) {
+      final result = groups.map<Map<String, dynamic>>((g) {
         return {...Map<String, dynamic>.from(g), "state": g["state"] ?? "JOIN"};
       }).toList();
+      
+      setState(() {
+        _allGroups = List.from(result);
+        _filteredGroups = List.from(result);
+      });
+      
+      return result;
     } else {
       throw Exception("Failed to load groups → ${res.body}");
     }
@@ -92,10 +126,33 @@ class _GroupsPageState extends State<GroupsPage> {
         } else {
           group["state"] = "JOIN";
         }
+        
+        // Update both lists to reflect the change
+        final index = _allGroups.indexWhere((g) => g["_id"] == group["_id"]);
+        if (index != -1) {
+          _allGroups[index] = {...group};
+        }
+        
+        final filteredIndex = _filteredGroups.indexWhere((g) => g["_id"] == group["_id"]);
+        if (filteredIndex != -1) {
+          _filteredGroups[filteredIndex] = {...group};
+        }
       });
     } else {
       print("Error joining/leaving group: ${res.body}");
     }
+  }
+
+  /// Navigate to group details page
+  void _openGroup(Map<String, dynamic> group) {
+    Navigator.pushNamed(
+      context,
+      "/group-details",
+      arguments: {
+        'groupId': group['_id'],
+        'groupName': group['name'],
+      },
+    );
   }
 
   @override
@@ -145,98 +202,111 @@ class _GroupsPageState extends State<GroupsPage> {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(child: Text("Error: ${snapshot.error}"));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No groups found"));
           }
 
-          final groups = snapshot.data!;
-
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                /// Search bar
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F2F5),
-                      borderRadius: BorderRadius.circular(12),
+          return Column(
+            children: [
+              /// Search bar
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F2F5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      hintText: "Search groups",
+                      prefixIcon: Icon(Icons.search),
+                      border: InputBorder.none,
+                      isCollapsed: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 14),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: const TextField(
-                      decoration: InputDecoration(
-                        hintText: "Search groups",
-                        prefixIcon: Icon(Icons.search),
-                        border: InputBorder.none,
-                        isCollapsed: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF637587),
-                        fontWeight: FontWeight.w400,
-                      ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF637587),
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ),
+              ),
 
-                const Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Text(
-                      "Discover Groups",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.6,
-                      ),
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Text(
+                    "Discover Groups",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
                     ),
                   ),
                 ),
+              ),
 
-                /// 👇 Dynamically render groups
-                for (var g in groups)
-                  GroupCard(
-                    groupImage:
-                        g["imageUrl"] != null
-                            ? "${dotenv.env['BACKEND_URL']}${g["imageUrl"]}"
-                            : "${dotenv.env['BACKEND_URL']}/BeFab.png",
-                    groupName: g["name"],
-                    groupType:
-                        g["visibility"] == "public"
-                            ? "Public group"
-                            : "Private group",
-                    postedTime: "",
-                    membersCount:
-                        g["members"] is List
-                            ? "${g["members"].length}"
-                            : "${g["members"] ?? 0}",
-                    description: g["description"],
-                    imageUrls: "${dotenv.env['BACKEND_URL']}${g["bannerUrl"]}",
-                    state: g["state"],
-                    groupId: g['_id'],
-                    onJoinPressed: () => handleJoinLeave(g),
-                  ),
-              ],
-            ),
+              /// Groups list
+              Expanded(
+                child: _filteredGroups.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "No groups found",
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredGroups.length,
+                        itemBuilder: (context, index) {
+                          final group = _filteredGroups[index];
+                          return GestureDetector(
+                            onTap: () => _openGroup(group),
+                            child: GroupCard(
+                              groupImage: group["imageUrl"] != null
+                                  ? "${dotenv.env['BACKEND_URL']}${group["imageUrl"]}"
+                                  : "${dotenv.env['BACKEND_URL']}/BeFab.png",
+                              groupName: group["name"],
+                              groupType: group["visibility"] == "public"
+                                  ? "Public group"
+                                  : "Private group",
+                              postedTime: "",
+                              membersCount: group["members"] is List
+                                  ? "${group["members"].length}"
+                                  : "${group["members"] ?? 0}",
+                              description: group["description"],
+                              imageUrls:
+                                  "${dotenv.env['BACKEND_URL']}${group["bannerUrl"]}",
+                              state: group["state"],
+                              groupId: group['_id'],
+                              onJoinPressed: () => handleJoinLeave(group),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),
 
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11),
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+            onPressed: () {
+              Navigator.pushNamed(context, "/all-reels");
+            },
           ),
-          onPressed: () {
-            // Navigate to create new group
-          },
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

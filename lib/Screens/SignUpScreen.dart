@@ -22,6 +22,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final firstNameController = TextEditingController();
   final lastNameController = TextEditingController();
   final usernameController = TextEditingController();
+  final userIdController = TextEditingController(); // Added user ID controller
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
@@ -38,6 +39,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       "firstName": firstNameController.text.trim(),
       "lastName": lastNameController.text.trim(),
       "username": usernameController.text.trim(),
+      "userId": userIdController.text.trim(), // Added user ID to the request
       "email": emailController.text.trim(),
       "password": passwordController.text,
       "code": otpController.text.trim(),
@@ -130,6 +132,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         "controller": usernameController,
       },
       {
+        "label": "User ID", // Added User ID field
+        "iconPath": "assets/images/icon1.svg",
+        "controller": userIdController,
+        "hint": "Enter your unique user ID",
+      },
+      {
         "label": "Email address",
         "iconPath": "assets/images/icon2.svg",
         "controller": emailController,
@@ -191,18 +199,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  // Padding(
-                  //   padding: const EdgeInsets.symmetric(vertical: 8),
-                  //   child: Text(
-                  //     'Get access to our weight loss and diabetes management app tailored for the HBCU community.',
-                  //     textAlign: TextAlign.center,
-                  //     style: GoogleFonts.inter(
-                  //       color: const Color(0xFF4E4E4E),
-                  //       fontSize: 13,
-                  //       fontWeight: FontWeight.w400,
-                  //     ),
-                  //   ),
-                  // ),
                   const SizedBox(height: 24),
                   Column(
                     children: [
@@ -218,7 +214,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                             obscureText: field["label"] == "Create password",
                             decoration: InputDecoration(
-                              hintText: field["label"],
+                              hintText: field["hint"] ?? field["label"], // Use hint if provided
                               hintStyle: GoogleFonts.inter(
                                 color: const Color(0xFF638773),
                                 fontSize: 14,

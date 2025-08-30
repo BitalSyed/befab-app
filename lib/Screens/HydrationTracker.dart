@@ -517,16 +517,19 @@ class _HydrationTrackerState extends State<HydrationTracker> {
           ],
         ),
       ),
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+            onPressed: () {},
           ),
-          onPressed: _showAddWaterDialog,
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

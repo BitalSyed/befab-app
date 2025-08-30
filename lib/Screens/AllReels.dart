@@ -22,10 +22,7 @@ class _AllReelsState extends State<AllReels> {
       Navigator.pushNamed(
         context,
         '/reel',
-        arguments: {
-          'videoPath': video.path,
-          'category': category,
-        },
+        arguments: {'videoPath': video.path, 'category': category},
       );
     }
   }
@@ -37,10 +34,7 @@ class _AllReelsState extends State<AllReels> {
       Navigator.pushNamed(
         context,
         '/reel',
-        arguments: {
-          'videoPath': video.path,
-          'category': 'Live',
-        },
+        arguments: {'videoPath': video.path, 'category': 'Live'},
       );
     }
   }
@@ -135,22 +129,25 @@ class _AllReelsState extends State<AllReels> {
       ),
 
       // Floating Button triggers action
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+            onPressed: () {
+              if (selected == 'Live') {
+                _recordLive();
+              } else {
+                _pickVideo(selected);
+              }
+            },
           ),
-          onPressed: () {
-            if (selected == 'Live') {
-              _recordLive();
-            } else {
-              _pickVideo(selected);
-            }
-          },
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -170,32 +167,34 @@ class _AllReelsState extends State<AllReels> {
             border: Border.all(color: const Color(0xFFC7C7CC)),
           ),
           child: Row(
-            children: labels.map((label) {
-              final isSelected = selected == label;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      selected = label;
-                    });
-                  },
-                  child: Container(
-                    alignment: Alignment.center,
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: isSelected ? 15 : 14,
-                        color: isSelected
-                            ? const Color(0xFF862633)
-                            : const Color(0xFF9C9B9D),
-                        fontWeight:
-                            isSelected ? FontWeight.w500 : FontWeight.w400,
+            children:
+                labels.map((label) {
+                  final isSelected = selected == label;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          selected = label;
+                        });
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: isSelected ? 15 : 14,
+                            color:
+                                isSelected
+                                    ? const Color(0xFF862633)
+                                    : const Color(0xFF9C9B9D),
+                            fontWeight:
+                                isSelected ? FontWeight.w500 : FontWeight.w400,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
           ),
         ),
       ),

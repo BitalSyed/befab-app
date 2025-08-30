@@ -131,7 +131,8 @@ Map<String, dynamic> calculateHealthDataTotal(
     'Steps',
     'Distance',
     'Calories Burned',
-    'Calories Taken'
+    'Calories Taken',
+    'Water Intake',
   ];
 
   @override
@@ -249,7 +250,7 @@ Map<String, dynamic> calculateHealthDataTotal(
               padding: const EdgeInsets.all(8.0),
               child: EditableGoalInputBox(
                 title: "What's your goal",
-                hintText: "Drink more water, sleep better, get fit",
+                hintText: "Drink more water, get fit",
                 controller: goalController,
               ),
             ),
@@ -265,7 +266,7 @@ Map<String, dynamic> calculateHealthDataTotal(
               padding: const EdgeInsets.all(8.0),
               child: EditableGoalInputBox(
                 title: "Milestones",
-                hintText: "1,000 steps",
+                hintText: "1,000 (Steps, ml, etc.)",
                 controller: milestoneController,
               ),
             ),
@@ -350,16 +351,21 @@ Map<String, dynamic> calculateHealthDataTotal(
           ],
         ),
       ),
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+          onPressed: () {
+            Navigator.pushNamed(context, "/all-reels");
+          },
           ),
-          onPressed: () {},
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

@@ -21,7 +21,7 @@ class HealthService {
     HealthDataType.BODY_TEMPERATURE,
     HealthDataType.WATER,
     HealthDataType.BODY_WATER_MASS,
-    
+
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.SLEEP_AWAKE,
     // HealthDataType.SLEEP_IN_BED,
@@ -36,30 +36,33 @@ class HealthService {
     HealthDataType.TOTAL_CALORIES_BURNED,
     HealthDataType.WORKOUT,
     HealthDataType.SLEEP_DEEP,
-  HealthDataType.SLEEP_LIGHT,
-  HealthDataType.SLEEP_REM,
-  HealthDataType.SLEEP_SESSION,
-  HealthDataType.SLEEP_UNKNOWN,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_REM,
+    HealthDataType.SLEEP_SESSION,
+    HealthDataType.SLEEP_UNKNOWN,
   ];
 
   /// Permissions mapping (READ / READ_WRITE depending on platform)
-  List<HealthDataAccess> get _permissions => _dataTypes
-      .map((type) =>
-          // On iOS some types are READ-only
-          [
-            HealthDataType.APPLE_MOVE_TIME,
-            HealthDataType.APPLE_STAND_HOUR,
-            HealthDataType.APPLE_STAND_TIME,
-            HealthDataType.WALKING_HEART_RATE,
-            HealthDataType.ELECTROCARDIOGRAM,
-            HealthDataType.HIGH_HEART_RATE_EVENT,
-            HealthDataType.LOW_HEART_RATE_EVENT,
-            HealthDataType.IRREGULAR_HEART_RATE_EVENT,
-            HealthDataType.EXERCISE_TIME,
-          ].contains(type)
-              ? HealthDataAccess.READ
-              : HealthDataAccess.READ_WRITE)
-      .toList();
+  List<HealthDataAccess> get _permissions =>
+      _dataTypes
+          .map(
+            (type) =>
+                // On iOS some types are READ-only
+                [
+                      HealthDataType.APPLE_MOVE_TIME,
+                      HealthDataType.APPLE_STAND_HOUR,
+                      HealthDataType.APPLE_STAND_TIME,
+                      HealthDataType.WALKING_HEART_RATE,
+                      HealthDataType.ELECTROCARDIOGRAM,
+                      HealthDataType.HIGH_HEART_RATE_EVENT,
+                      HealthDataType.LOW_HEART_RATE_EVENT,
+                      HealthDataType.IRREGULAR_HEART_RATE_EVENT,
+                      HealthDataType.EXERCISE_TIME,
+                    ].contains(type)
+                    ? HealthDataAccess.READ
+                    : HealthDataAccess.READ_WRITE,
+          )
+          .toList();
 
   /// Configure health plugin
   Future<void> configure() async {
@@ -83,42 +86,87 @@ class HealthService {
   void suggestInstallHealthApp(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Health App Required"),
-        content: const Text(
-          "This feature requires Health Connect (Android) or Apple Health (iOS).",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+      builder:
+          (_) => AlertDialog(
+            title: const Text("Health App Required"),
+            content: const Text(
+              "This feature requires Health Connect (Android) or Apple Health (iOS).",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  final url = Uri.parse(
+                    Platform.isAndroid
+                        ? "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
+                        : "https://apps.apple.com/us/app/health/id1110145103",
+                  );
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: const Text("Install"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final url = Uri.parse(
-                Platform.isAndroid
-                    ? "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
-                    : "https://apps.apple.com/us/app/health/id1110145103",
-              );
-              if (await canLaunchUrl(url)) {
-                await launchUrl(url, mode: LaunchMode.externalApplication);
-              }
-            },
-            child: const Text("Install"),
-          ),
-        ],
-      ),
     );
   }
 
-    /// Request runtime + health permissions
+  Future<bool> isHealthServiceAvailable() async {
+    if (Platform.isAndroid) {
+      // Try to launch Google Fit
+      final fitScheme = Uri.parse("googlefit://");
+      return await canLaunchUrl(fitScheme);
+    } else if (Platform.isIOS) {
+      // Apple Health is always present, but needs permissions
+      return true;
+    }
+    return false;
+  }
+
+  void suggestInstallHealthService(BuildContext context) {
+    showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: const Text("Health Service Required"),
+            content: const Text(
+              "Some features may requires Google Fit (Android) or Apple Health (iOS).",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  final url = Uri.parse(
+                    Platform.isAndroid
+                        ? "https://play.google.com/store/apps/details?id=com.google.android.apps.fitness"
+                        : "https://apps.apple.com/us/app/apple-health/id1110145103",
+                  );
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: const Text("Install"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  /// Request runtime + health permissions
   Future<bool> requestAuthorization() async {
     // Android requires runtime permissions for activity/location
     if (Platform.isAndroid) {
       await Permission.activityRecognition.request();
       await Permission.location.request();
-
     }
 
     // Check existing permissions
@@ -182,14 +230,17 @@ class HealthService {
       // Group results by datatype
       for (var type in _dataTypes) {
         var filtered = data.where((d) => d.type == type).toList();
-        results[type.toString()] = filtered
-            .map((d) => {
-                  "value": d.value,
-                  "unit": d.unitString,
-                  "dateFrom": d.dateFrom.toIso8601String(),
-                  "dateTo": d.dateTo.toIso8601String(),
-                })
-            .toList();
+        results[type.toString()] =
+            filtered
+                .map(
+                  (d) => {
+                    "value": d.value,
+                    "unit": d.unitString,
+                    "dateFrom": d.dateFrom.toIso8601String(),
+                    "dateTo": d.dateTo.toIso8601String(),
+                  },
+                )
+                .toList();
       }
     } catch (e) {
       results["error"] = e.toString();

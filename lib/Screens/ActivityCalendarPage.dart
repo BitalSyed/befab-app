@@ -139,15 +139,15 @@ class _CalendarPageState extends State<CalendarPage> {
         title: const Text('Calendar',
             style: TextStyle(color: Colors.black, fontSize: 16)),
         actions: [
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/images/settings2.svg',
-              width: 18,
-              height: 18,
-              color: Color(0xFF862633),
-            ),
-            onPressed: () {},
-          ),
+          // IconButton(
+          //   icon: SvgPicture.asset(
+          //     'assets/images/settings2.svg',
+          //     width: 18,
+          //     height: 18,
+          //     color: Color(0xFF862633),
+          //   ),
+          //   onPressed: () {},
+          // ),
         ],
       ),
 
@@ -206,13 +206,21 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       ),
 
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(Icons.add_circle,
-              size: 70, color: Color(0xFF862633)),
-          onPressed: () {},
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+          onPressed: () {
+            Navigator.pushNamed(context, "/all-reels");
+          },
+          ),
         ),
       ),
       floatingActionButtonLocation:

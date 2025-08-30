@@ -414,12 +414,21 @@ class _FitnessGroupPageState extends State<FitnessGroupPage> {
         ),
       ),
 
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(Icons.add_circle, size: 70, color: Color(0xFF862633)),
-          onPressed: () {}, // add action if needed
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+          onPressed: () {
+            Navigator.pushNamed(context, "/all-reels");
+          },
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

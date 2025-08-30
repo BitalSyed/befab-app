@@ -26,9 +26,17 @@ class Competition {
       title: json['title'],
       description: json['description'],
       imageUrl: json['imageUrl'],
-      participants: (json['participants'] as List<dynamic>? ?? [])
-          .map((p) => p['user'] as String) // extract user ID
-          .toList(),
+      participants:
+          (json['participants'] as List<dynamic>? ?? [])
+              .map((p) {
+                final user = p['user'];
+                if (user is String) return user; // already an ID
+                if (user is Map<String, dynamic>)
+                  return user['_id'] as String; // populated object
+                return "";
+              })
+              .where((id) => id.isNotEmpty)
+              .toList(),
     );
   }
 }
@@ -49,38 +57,40 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
   }
 
   Future<List<Competition>> fetchCompetitions() async {
-  final token = await readSecureData("token");
-  final url = "${dotenv.env['BACKEND_URL']}/app/competitions";
+    final token = await readSecureData("token");
+    final url = "${dotenv.env['BACKEND_URL']}/app/competitions";
 
-  final response = await http.get(
-    Uri.parse(url),
-    headers: {
-      "Content-Type": "application/json",
-      if (token != null) "Authorization": "Bearer $token",
-    },
-  );
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        "Content-Type": "application/json",
+        if (token != null) "Authorization": "Bearer $token",
+      },
+    );
 
-  if (response.statusCode == 200) {
-    final body = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
 
-    final list = body['list'] as List<dynamic>;
-    final competitions = list.map((json) => Competition.fromJson(json)).toList();
+      final list = body['list'] as List<dynamic>;
+      final competitions =
+          list.map((json) => Competition.fromJson(json)).toList();
 
-    // ✅ use backend "joined" flag
-    final joined = list
-        .where((json) => json['joined'] == true)
-        .map((json) => json['_id'] as String)
-        .toSet();
+      // ✅ use backend "joined" flag
+      final joined =
+          list
+              .where((json) => json['joined'] == true)
+              .map((json) => json['_id'] as String)
+              .toSet();
 
-    setState(() {
-      joinedCompetitions = joined;
-    });
+      setState(() {
+        joinedCompetitions = joined;
+      });
 
-    return competitions;
-  } else {
-    throw Exception("Failed to load competitions: ${response.body}");
+      return competitions;
+    } else {
+      throw Exception("Failed to load competitions: ${response.body}");
+    }
   }
-}
 
   Future<void> joinCompetition(String competitionId) async {
     final token = await readSecureData("token");
@@ -99,9 +109,9 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
       setState(() {
         joinedCompetitions.add(competitionId); // ✅ update UI
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Joined successfully!")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Joined successfully!")));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to join: ${response.body}")),
@@ -164,13 +174,15 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
                   itemBuilder: (_, index) {
                     final comp = competitions[index];
                     final isJoined = joinedCompetitions.contains(comp.id);
- // ✅ always checks state 
+                    // ✅ always checks state
 
                     return Column(
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0, vertical: 8.0),
+                            horizontal: 16.0,
+                            vertical: 8.0,
+                          ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -180,12 +192,17 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
                                   width: 56,
                                   height: 56,
                                   color: Colors.grey.shade200,
-                                  child: comp.imageUrl != null &&
-                                          comp.imageUrl!.isNotEmpty
-                                      ? Image.network(comp.imageUrl!,
-                                          fit: BoxFit.cover)
-                                      : Image.asset("assets/images/list.png",
-                                          fit: BoxFit.cover),
+                                  child:
+                                      comp.imageUrl != null &&
+                                              comp.imageUrl!.isNotEmpty
+                                          ? Image.network(
+                                            comp.imageUrl!,
+                                            fit: BoxFit.cover,
+                                          )
+                                          : Image.asset(
+                                            "assets/images/list.png",
+                                            fit: BoxFit.cover,
+                                          ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -207,25 +224,29 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
                                         color: Colors.grey,
                                         fontSize: 14,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                      // maxLines: 1,
+                                      overflow: TextOverflow.clip,
                                     ),
                                   ],
                                 ),
                               ),
                               TextButton(
-                                onPressed: isJoined
-                                    ? null
-                                    : () => joinCompetition(comp.id),
+                                onPressed:
+                                    isJoined
+                                        ? null
+                                        : () => joinCompetition(comp.id),
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 12),
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
-                                  backgroundColor: isJoined
-                                      ? Colors.grey.shade400
-                                      : Colors.grey.shade200,
+                                  backgroundColor:
+                                      isJoined
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade200,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
@@ -233,9 +254,10 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
                                 child: Text(
                                   isJoined ? "JOINED" : "JOIN",
                                   style: TextStyle(
-                                    color: isJoined
-                                        ? Colors.white
-                                        : const Color(0xFF862633),
+                                    color:
+                                        isJoined
+                                            ? Colors.white
+                                            : const Color(0xFF862633),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -246,7 +268,9 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
                         ),
                         Padding(
                           padding: const EdgeInsets.only(
-                              left: 84.0, right: 16.0),
+                            left: 84.0,
+                            right: 16.0,
+                          ),
                           child: const Divider(
                             height: 1,
                             color: Colors.grey,
@@ -262,16 +286,21 @@ class _CompetitionsListPageState extends State<CompetitionsListPage> {
           ),
         ],
       ),
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+          onPressed: () {
+            Navigator.pushNamed(context, "/all-reels");
+          },
           ),
-          onPressed: () {},
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -323,11 +352,7 @@ class _ToggleOptionsState extends State<ToggleOptions> {
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            height: 2,
-            width: 120,
-            color: const Color(0xFFE5E8EB),
-          ),
+          Container(height: 2, width: 120, color: const Color(0xFFE5E8EB)),
         ],
       ),
     );

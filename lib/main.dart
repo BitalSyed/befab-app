@@ -36,6 +36,8 @@ import 'package:befab/Screens/VideoCategoriesScreen.dart';
 import 'package:befab/Screens/VitalsMeasurement.dart';
 import 'package:befab/Screens/WelcomeScreen.dart';
 import 'package:befab/components/FitnessGroup.dart';
+import 'package:befab/components/notifications_popup.dart';
+import 'package:befab/services/health_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -96,25 +98,29 @@ class MyApp extends StatelessWidget {
         '/video-categories': (context) => VideoCategoriesScreen(),
         '/single-video': (context) => SingleVideoScreen(),
         '/all-reels': (context) => AllReels(),
-        '/single-reel': (context) =>SingleReel(),
+        '/single-reel': (context) => SingleReel(),
         '/reel': (context) => Reel(),
         '/message': (context) => MessagesPage(),
         // main.dart (or wherever your routes are defined)
-'/chat-screen': (context) {
-  final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+        '/chat-screen': (context) {
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
 
-  if (args == null || args['chatId'] == null || args['userId'] == null) {
-    return const Scaffold(
-      body: Center(child: Text("Missing chat arguments")),
-    );
-  }
+          if (args == null ||
+              args['chatId'] == null ||
+              args['userId'] == null) {
+            return const Scaffold(
+              body: Center(child: Text("Missing chat arguments")),
+            );
+          }
 
-  return ChatScreen(
-    chatId: args['chatId'] as String,
-    userId: args['userId'] as String,
-    name: args['name'] as String? ?? "User",
-  );
-},
+          return ChatScreen(
+            chatId: args['chatId'] as String,
+            userId: args['userId'] as String,
+            name: args['name'] as String? ?? "User",
+          );
+        },
 
         '/groups': (context) => GroupsPage(),
         '/fitness-group': (_) => FitnessGroupPage(),

@@ -38,6 +38,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     loadGoals();
     data = getDWMPercentagesForStepsAndDistance();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    final data = await fetchNotifications(); // ✅ await here
+    setState(() {
+      notifications = data ?? [];
+    });
   }
 
   final HealthService healthService = HealthService();
@@ -67,10 +75,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
       healthData = data;
     });
 
+    sendData(data);
+
     debugPrint("✅ Platform: ${healthService.getPlatform()}");
     debugPrint(
       "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')}",
     );
+  }
+
+  static final String _baseUrl = dotenv.env['BACKEND_URL'] ?? "";
+  static Future<void> sendData(Map<String, dynamic> data) async {
+    final url = Uri.parse("$_baseUrl/app/data");
+    final storage = FlutterSecureStorage();
+    final token = await storage.read(key: 'token');
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ Success: ${response.body}");
+      } else {
+        print("❌ Failed: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      print("⚡ Error sending request: $e");
+    }
   }
 
   // Helper to get a single value safely from healthData
@@ -204,64 +239,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, Map<String, double>> getDWMPercentagesForStepsAndDistance() {
     Map<String, Map<String, double>> result = {
       "STEPS": {"daily": 0.0, "weekly": 0.0, "monthly": 0.0},
-      "DISTANCE_DELTA": {"daily": 0.0, "weekly": 0.0, "monthly": 0.0},
+      "DISTANCE": {"daily": 0.0, "weekly": 0.0, "monthly": 0.0},
     };
 
-    double pct(num part, num whole) =>
-        (whole == 0) ? 0.0 : (part / whole) * 100.0;
+    // Get the actual values for steps and distance
+    final stepsData = getHealthValue("HealthDataType.STEPS");
+    final distanceData = getHealthValue(
+      "HealthDataType.DISTANCE_DELTA",
+      convertMetersToKm: true,
+    );
 
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final weekStart = todayStart.subtract(const Duration(days: 6));
-    final monthStart = todayStart.subtract(const Duration(days: 29));
+    // For demo purposes, let's use some realistic values
+    // In a real app, you would calculate these based on user goals or averages
+    double stepsDaily =
+        double.tryParse(stepsData["data"]?.toString() ?? "0") ?? 0;
+    double distanceDaily =
+        double.tryParse(distanceData["data"]?.toString() ?? "0") ?? 0;
 
-    double sumForRange(String type, DateTime fromInclusive) {
-      final list = healthData?[type];
-      if (list is! List || list.isEmpty) return 0.0;
+    // Set reasonable targets (adjust these based on your app's requirements)
+    const double dailyStepsTarget = 10000;
+    const double dailyDistanceTarget = 8.0; // 8 km
 
-      double total = 0.0;
-      for (final e in list) {
-        if (e is! Map) continue;
+    // Calculate percentages
+    result["STEPS"] = {
+      "daily": (stepsDaily / dailyStepsTarget * 100).clamp(0, 100).toDouble(),
+      "weekly":
+          ((stepsDaily * 7) / (dailyStepsTarget * 7) * 100)
+              .clamp(0, 100)
+              .toDouble(),
+      "monthly":
+          ((stepsDaily * 30) / (dailyStepsTarget * 30) * 100)
+              .clamp(0, 100)
+              .toDouble(),
+    };
 
-        final dateStr = e['dateFrom'];
-        if (dateStr is! String) continue;
-        final dt = DateTime.tryParse(dateStr);
-        if (dt == null || dt.isBefore(fromInclusive)) continue;
-
-        final v = e['value'];
-        double val = 0.0;
-        if (v is Map && v['numericValue'] is num) {
-          val = (v['numericValue'] as num).toDouble();
-        } else {
-          try {
-            final n = (v as dynamic).numericValue;
-            if (n is num) val = n.toDouble();
-          } catch (_) {}
-        }
-        total += val;
-      }
-      return total;
-    }
-
-    Map<String, double> calcFor(String type) {
-      final daily = sumForRange(type, todayStart);
-      final weekly = sumForRange(type, weekStart);
-      final monthly = sumForRange(type, monthStart);
-
-      return {
-        "daily": pct(daily, weekly),
-        "weekly": pct(weekly, monthly),
-        "monthly": monthly > 0 ? 100.0 : 0.0,
-      };
-    }
-
-    result["STEPS"] = calcFor("HealthDataType.STEPS");
-    result["DISTANCE_DELTA"] = calcFor("HealthDataType.DISTANCE_DELTA");
+    result["DISTANCE"] = {
+      "daily":
+          (distanceDaily / dailyDistanceTarget * 100).clamp(0, 100).toDouble(),
+      "weekly":
+          ((distanceDaily * 7) / (dailyDistanceTarget * 7) * 100)
+              .clamp(0, 100)
+              .toDouble(),
+      "monthly":
+          ((distanceDaily * 30) / (dailyDistanceTarget * 30) * 100)
+              .clamp(0, 100)
+              .toDouble(),
+    };
 
     return result;
   }
 
   var data;
+  var notifications;
 
   Future<Map<String, dynamic>?> fetchNutritionData() async {
     try {
@@ -376,13 +405,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<List<dynamic>?> fetchNotifications() async {
+    try {
+      // Get backend URL
+      final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
+      if (backendUrl.isEmpty) {
+        print("⚠️ BACKEND_URL is empty in .env");
+        return null;
+      }
+
+      // Get token from secure storage
+      final storage = FlutterSecureStorage();
+      final token = await storage.read(key: 'token');
+      if (token == null) {
+        print("⚠️ No auth token found in storage");
+        return null;
+      }
+
+      // Build full URL
+      final String url = '$backendUrl/app/notifications';
+      print("Fetching notifications from: $url");
+
+      // Make GET request with Authorization header
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = jsonDecode(response.body);
+        print("✅ Notifications fetched successfully");
+        print("🔔 Number of notifications: ${data.length}");
+        return data;
+      } else {
+        print(
+          '⚠️ Failed to fetch notifications. Status code: ${response.statusCode}',
+        );
+        print('Response body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error fetching notifications: $e');
+      return null;
+    }
+  }
+
   // Usage example:
   List<dynamic> goals = []; // Variable to store goals
 
   void loadGoals() async {
     final goalsData = await fetchGoalsData();
     if (goalsData != null) {
-      goals = goalsData;
+      setState(() {
+        goals = goalsData;
+      });
       print("🎯 Goals loaded: ${goals.length}");
     } else {
       print("❌ Failed to load goals");
@@ -394,7 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _fetchUser() async {
     try {
-      final token = await secureStorage.read(key: 'token');
+      final token = await storage.read(key: 'token');
       final url = "${dotenv.env['BACKEND_URL']}/app/get";
 
       final response = await http.get(
@@ -501,28 +580,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.all(4.0),
-            child: Stack(
-              children: [
-                SvgPicture.asset(
-                  'assets/images/bell.svg',
-                  height: 24,
-                  width: 24,
-                  color: const Color(0xFF862633),
-                ),
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
+            padding: const EdgeInsets.only(
+              top: 4,
+              right: 12,
+              left: 4,
+              bottom: 4,
+            ),
+            child: GestureDetector(
+              onTap: () {
+                final RenderBox overlay =
+                    Overlay.of(context).context.findRenderObject() as RenderBox;
+
+                showMenu(
+                  context: context,
+                  position: RelativeRect.fromLTRB(
+                    overlay.size.width, // right align
+                    kToolbarHeight, // just below AppBar
+                    0,
+                    0,
                   ),
-                ),
-              ],
+                  items: [
+                    PopupMenuItem(
+                      enabled: false, // non-clickable header
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Notifications",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const Divider(),
+
+                          // ✅ Handle null safely
+                          if (notifications != null && notifications.isNotEmpty)
+                            ...notifications.map((n) {
+                              return ListTile(
+                                leading: const Icon(
+                                  Icons.notifications,
+                                  color: Colors.pink,
+                                ),
+                                title: Text(n["content"] ?? "No content"),
+                                subtitle: Text(
+                                  n["createdAt"] != null
+                                      ? DateTime.parse(
+                                        n["createdAt"],
+                                      ).toLocal().toString()
+                                      : "Unknown time",
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              );
+                            }).toList()
+                          else
+                            const Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text("No notifications yet"),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+              child: Stack(
+                children: [
+                  SvgPicture.asset(
+                    'assets/images/bell.svg',
+                    height: 24,
+                    width: 24,
+                    color: const Color(0xFF862633),
+                  ),
+                  if (notifications != null && notifications.isNotEmpty)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -537,7 +681,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     WeightLossProgressChart(),
                     const SizedBox(height: 16),
-                    _buildActivityTrackerCard(context, (data)),
+                    _buildActivityTrackerCard(context, data),
                     const SizedBox(height: 12),
                     Card(
                       color: const Color(0xFFF3F3F3),
@@ -581,23 +725,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   );
                                 }).toList(),
                           ),
-                          // const Divider(thickness: 0.5),
-                          // Align(
-                          //   alignment: Alignment.centerRight,
-                          //   child: Padding(
-                          //     padding: const EdgeInsets.only(
-                          //       bottom: 8.0,
-                          //       right: 8,
-                          //     ),
-                          //     child: const Text(
-                          //       "view all",
-                          //       style: TextStyle(
-                          //         fontSize: 12,
-                          //         color: Colors.black,
-                          //       ),
-                          //     ),
-                          //   ),
-                          // ),
                         ],
                       ),
                     ),
@@ -666,12 +793,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        // _buildIconBoxWithText(
-                        //   context,
-                        //   'assets/images/log.svg',
-                        //   'Log Activity',
-                        //   "/log",
-                        // ),
                         _buildIconBoxWithText(
                           context,
                           'assets/images/goal.svg',
@@ -684,12 +805,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           'Join Competition',
                           "/competitions-list",
                         ),
-                        // _buildIconBoxWithText(
-                        //   context,
-                        //   'assets/images/resource.svg',
-                        //   'Resource',
-                        //   "/dashboard",
-                        // ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -697,18 +812,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
 
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+          onPressed: () {
+            Navigator.pushNamed(context, "/all-reels");
+          },
           ),
-          onPressed: () {},
         ),
       ),
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
     );
@@ -871,63 +992,24 @@ Widget _buildImageCard(
   );
 }
 
-// Widget _buildSegmentButton(String label, bool isSelected) {
-//   return Container(
-//     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-//     decoration: BoxDecoration(
-//       color: isSelected ? const Color(0xFFD9D9D9) : const Color(0xFFF3F3F3),
-//       borderRadius: BorderRadius.circular(8),
-//       border: Border.all(color: Colors.grey),
-//     ),
-//     child: Text(
-//       label,
-//       style: TextStyle(
-//         fontFamily: 'roboto',
-//         color: isSelected ? const Color(0xFF1D1B20) : const Color(0xFF49454F),
-//         fontWeight: FontWeight.w600,
-//       ),
-//     ),
-//   );
-// }
-
 Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
   return StatefulBuilder(
     builder: (BuildContext context, StateSetter setState) {
-      // Calculate percentages for each time period
-      final daily =
-          ((percentages?["STEPS"]?["daily"] ?? 0) +
-              (percentages?["DISTANCE_DELTA"]?["daily"] ?? 0)) /
-          2;
-
-      final weekly =
-          ((percentages?["STEPS"]?["weekly"] ?? 0) +
-              (percentages?["DISTANCE_DELTA"]?["weekly"] ?? 0)) /
-          2;
-
-      final monthly =
-          ((percentages?["STEPS"]?["monthly"] ?? 0) +
-              (percentages?["DISTANCE_DELTA"]?["monthly"] ?? 0)) /
-          2;
-
       // Initialize state variables
       String selectedPeriod = "Daily";
-      num percentage = daily;
-      double progress = daily / 100;
 
       // Function to handle period selection
       void selectPeriod(String period) {
         setState(() {
           selectedPeriod = period;
-          if (period == "Daily") {
-            percentage = daily;
-          } else if (period == "Weekly") {
-            percentage = weekly;
-          } else if (period == "Monthly") {
-            percentage = monthly;
-          }
-          progress = percentage / 100;
         });
       }
+
+      // Get percentages for the selected period
+      double stepsPercentage =
+          percentages?["STEPS"]?[selectedPeriod.toLowerCase()] ?? 0;
+      double distancePercentage =
+          percentages?["DISTANCE"]?[selectedPeriod.toLowerCase()] ?? 0;
 
       return Card(
         color: const Color(0xFFF3F3F3),
@@ -947,7 +1029,7 @@ Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
                       fontSize: 16,
                     ),
                   ),
-                  const Icon(Icons.keyboard_arrow_up),
+                  // const Icon(Icons.keyboard_arrow_up),
                 ],
               ),
               const SizedBox(height: 4),
@@ -973,83 +1055,109 @@ Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
                 ],
               ),
               const SizedBox(height: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Stack(
-                    children: [
-                      Container(
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      FractionallySizedBox(
-                        widthFactor: progress,
-                        child: Container(
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF862633),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Stack(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "0%",
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF4E4E4E),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Text(
-                            "100%",
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF4E4E4E),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Positioned(
-                        left:
-                            progress * MediaQuery.of(context).size.width * 0.72,
-                        child: Text(
-                          "${(percentage).round()}%",
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF4E4E4E),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+
+              // Steps progress bar
+              _buildActivityProgressBar("Steps", stepsPercentage, context),
+              const SizedBox(height: 16),
+
+              // Distance progress bar
+              _buildActivityProgressBar(
+                "Distance",
+                distancePercentage,
+                context,
               ),
+
               const SizedBox(height: 24),
-              const Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  "view details",
-                  style: TextStyle(fontSize: 11, color: Color(0xFF862633)),
-                ),
-              ),
+              // const Align(
+              //   alignment: Alignment.centerRight,
+              //   child: Text(
+              //     "view details",
+              //     style: TextStyle(fontSize: 11, color: Color(0xFF862633)),
+              //   ),
+              // ),
             ],
           ),
         ),
       );
     },
+  );
+}
+
+// Helper method to build individual progress bars
+Widget _buildActivityProgressBar(
+  String title,
+  double percentage,
+  BuildContext context,
+) {
+  double progress = percentage / 100;
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
+      ),
+      const SizedBox(height: 8),
+      Stack(
+        children: [
+          Container(
+            height: 10,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          FractionallySizedBox(
+            widthFactor: progress,
+            child: Container(
+              height: 10,
+              decoration: BoxDecoration(
+                color: const Color(0xFF862633),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      Stack(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "0%",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF4E4E4E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              Text(
+                "100%",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF4E4E4E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            left: progress * MediaQuery.of(context).size.width * 0.72,
+            child: Text(
+              "${percentage.round()}%",
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: const Color(0xFF4E4E4E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
   );
 }
 

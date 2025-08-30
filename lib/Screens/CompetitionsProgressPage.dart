@@ -1,16 +1,77 @@
+import 'dart:convert';
+
 import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/WaveGraph.dart';
+import 'package:befab/services/secure_storage_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
-class CompetitionsProgressPage extends StatelessWidget {
+class CompetitionsProgressPage extends StatefulWidget {
+  @override
+  _CompetitionsProgressPageState createState() =>
+      _CompetitionsProgressPageState();
+}
+
+class _CompetitionsProgressPageState extends State<CompetitionsProgressPage> {
+  Map<String, dynamic> competitionsJson = {};
+  bool isLoading = true;
+
+  Future<Map<String, dynamic>> fetchCompetitionsRaw() async {
+    final token = await readSecureData("token");
+    final url = "${dotenv.env['BACKEND_URL']}/app/competitions";
+    final url1 = "${dotenv.env['BACKEND_URL']}/app/competitions/get";
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        "Content-Type": "application/json",
+        if (token != null) "Authorization": "Bearer $token",
+      },
+    );
+
+    final response1 = await http.get(
+      Uri.parse(url1),
+      headers: {
+        "Content-Type": "application/json",
+        if (token != null) "Authorization": "Bearer $token",
+      },
+    );
+
+    if (response.statusCode == 200 && response1.statusCode == 200) {
+      return jsonDecode(response1.body) as Map<String, dynamic>;
+    } else {
+      throw Exception("Failed to load competitions: ${response1.body}");
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchCompetitionsRaw()
+        .then((data) {
+          setState(() {
+            competitionsJson = data;
+            debugPrint("Competitions Data: $competitionsJson");
+            isLoading = false;
+          });
+        })
+        .catchError((error) {
+          setState(() {
+            isLoading = false;
+          });
+          // Handle error appropriately
+          print("Error fetching competitions: $error");
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-          surfaceTintColor: Colors.transparent,  // Prevent M3 tint
-
+        surfaceTintColor: Colors.transparent, // Prevent M3 tint
         leadingWidth: 100,
         leading: GestureDetector(
           onTap: () {
@@ -56,8 +117,11 @@ class CompetitionsProgressPage extends StatelessWidget {
                   vertical: 6,
                 ),
                 child: Text(
-                  "4 won",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  "${competitionsJson?['stats']?['totalWins'] ?? 0} won",
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               Padding(
@@ -65,25 +129,25 @@ class CompetitionsProgressPage extends StatelessWidget {
                   horizontal: 16.0,
                   vertical: 6,
                 ),
-                child: RichText(
-                  text: TextSpan(
-                    style: const TextStyle(fontSize: 16, color: Colors.black),
-                    children: [
-                      const TextSpan(
-                        text: "Last 30 Days ",
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
-                      TextSpan(
-                        text: "+12%",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF862633),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                // child: RichText(
+                //   text: TextSpan(
+                //     style: const TextStyle(fontSize: 16, color: Colors.black),
+                //     children: [
+                //       const TextSpan(
+                //         text: "Last 30 Days ",
+                //         style: TextStyle(color: Colors.grey, fontSize: 14),
+                //       ),
+                //       TextSpan(
+                //         text: "+12%",
+                //         style: const TextStyle(
+                //           fontSize: 14,
+                //           color: Color(0xFF862633),
+                //           fontWeight: FontWeight.bold,
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                // ),
               ),
               SizedBox(height: 16),
               Padding(
@@ -94,24 +158,24 @@ class CompetitionsProgressPage extends StatelessWidget {
                 child: WaveGraph(),
               ),
               SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        "You've completed 2 of 4 milestones in the Invest in Women competition",
-                        style: TextStyle(fontSize: 16, color: Colors.black,fontWeight: FontWeight.w400),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                  ],
-                ),
-              ),
+              // Padding(
+              //   padding: const EdgeInsets.symmetric(
+              //     horizontal: 16.0,
+              //     vertical: 8.0,
+              //   ),
+              //   child: Row(
+              //     children: [
+              //       Expanded(
+              //         child: Text(
+              //           "You've completed 2 of 4 milestones in the Invest in Women competition",
+              //           style: TextStyle(fontSize: 16, color: Colors.black,fontWeight: FontWeight.w400),
+              //           overflow: TextOverflow.ellipsis,
+              //         ),
+              //       ),
+              //       Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              //     ],
+              //   ),
+              // ),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
@@ -124,7 +188,10 @@ class CompetitionsProgressPage extends StatelessWidget {
                       "Total Progress",
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    Text("50%", style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                      "${competitionsJson?['stats']?['avgProgress']?.toStringAsFixed(1) ?? '0'}%",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ],
                 ),
               ),
@@ -139,7 +206,10 @@ class CompetitionsProgressPage extends StatelessWidget {
                   child: Container(
                     height: 6, // increase height here
                     child: LinearProgressIndicator(
-                      value: 0.3,
+                      value:
+                          ((competitionsJson?['stats']?['avgProgress'] ?? 0)
+                              as num) /
+                          100,
                       color: Color(0xFF862633),
                       backgroundColor:
                           Colors.grey.shade300, // optional for contrast
@@ -147,7 +217,7 @@ class CompetitionsProgressPage extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: 6,),
+              SizedBox(height: 6),
 
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -158,50 +228,58 @@ class CompetitionsProgressPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        "You're currently ranked 23rd out of 200 participants in the Invest in Women competition",
-                        style: TextStyle(fontSize: 16, color: Colors.black,fontWeight: FontWeight.w400),
-                        overflow: TextOverflow.ellipsis,
+                        "You're currently ranked ${competitionsJson?['stats']?['avgRank'] ?? 'N/A'} in all competitions",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        overflow: TextOverflow.visible,
                       ),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    // Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                   ],
                 ),
               ),
-              SizedBox(height: 6,),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        "You've made 10 trades this month. Keep going to hit your goal of 20",
-                        style: TextStyle(fontSize: 16, color: Colors.black,fontWeight: FontWeight.w400),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                  ],
-                ),
-              ),
-              SizedBox(height: 36,),
-
+              SizedBox(height: 6),
+              // Padding(
+              //   padding: const EdgeInsets.symmetric(
+              //     horizontal: 16.0,
+              //     vertical: 16,
+              //   ),
+              //   child: Row(
+              //     children: [
+              //       Expanded(
+              //         child: Text(
+              //           "You've made 10 trades this month. Keep going to hit your goal of 20",
+              //           style: TextStyle(fontSize: 16, color: Colors.black,fontWeight: FontWeight.w400),
+              //           overflow: TextOverflow.ellipsis,
+              //         ),
+              //       ),
+              //       Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              //     ],
+              //   ),
+              // ),
+              SizedBox(height: 36),
             ],
           ),
         ),
       ),
-      floatingActionButton: SizedBox(
-        width: 70,
-        height: 70,
-        child: IconButton(
-          icon: const Icon(
-            Icons.add_circle,
-            size: 70,
-            color: Color(0xFF862633),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 11), // adjust as needed
+        child: SizedBox(
+          width: 70,
+          height: 70,
+          child: IconButton(
+            icon: const Icon(
+              Icons.add_circle,
+              size: 70,
+              color: Color(0xFF862633),
+            ),
+          onPressed: () {
+            Navigator.pushNamed(context, "/all-reels");
+          },
           ),
-          onPressed: () {},
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

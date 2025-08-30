@@ -287,7 +287,12 @@ class _SurveyStartScreenState extends State<SurveyStartScreen> {
           loading
               ? const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.only(
+                  top: 80,
+                  left: 12,
+                  right: 12,
+                  bottom: 40
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
