@@ -489,8 +489,8 @@ class _FitnessSummaryState extends State<FitnessSummary> {
       appBar: CustomAppBar(
         leftWidget: Row(
           children: [
-            SvgPicture.asset('assets/images/Arrow.svg', width: 14, height: 14),
-            const SizedBox(width: 4),
+            SvgPicture.asset('assets/images/Arrow.svg', width: 18, height: 18),
+            const SizedBox(width: 5),
             // const CircleAvatar(
             //   radius: 20,
             //   backgroundImage: AssetImage('assets/images/profile.jpg'),

@@ -17,9 +17,10 @@ class VideoCategoriesScreen extends StatefulWidget {
 }
 
 class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
-  String selectedCategory = "BeFAB HBCU";
+  String selectedCategory = "BeFAB NCCU";
   List<dynamic> videos = [];
   bool loading = true;
+  Set<String> likedVideos = {}; // Track which videos the user has liked
 
   final storage = const FlutterSecureStorage();
   Map<String, VideoPlayerController> _controllers = {};
@@ -47,8 +48,13 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
       );
 
       if (response.statusCode == 200) {
+        final videosData = json.decode(response.body) as List<dynamic>;
+        
+        // Check if user has liked each video
+        await _checkLikedVideos(videosData, token!);
+        
         setState(() {
-          videos = json.decode(response.body);
+          videos = videosData;
         });
       } else {
         print("Failed: ${response.body}");
@@ -57,6 +63,48 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
       print("Error: $e");
     } finally {
       setState(() => loading = false);
+    }
+  }
+
+  // Check if user has liked each video
+  Future<void> _checkLikedVideos(List<dynamic> videos, String token) async {
+    try {
+      // Fetch all liked videos at once
+      final likedResponse = await http.get(
+        Uri.parse("${dotenv.env['BACKEND_URL']}/app/videos/liked/get"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (likedResponse.statusCode == 200) {
+        final likedVideosList = json.decode(likedResponse.body) as List<dynamic>;
+        debugPrint("Liked videos: $likedVideosList");
+        final likedVideoIds = likedVideosList.map((id) => id.toString()).toSet();
+        
+        setState(() {
+          likedVideos = likedVideoIds;
+        });
+        
+        // Update each video with like status
+        for (var video in videos) {
+          final videoId = video["_id"].toString();
+          video["isLikedByUser"] = likedVideoIds.contains(videoId);
+        }
+      } else {
+        print("Failed to fetch liked videos: ${likedResponse.body}");
+        // If we can't fetch liked videos, assume none are liked
+        for (var video in videos) {
+          video["isLikedByUser"] = false;
+        }
+      }
+    } catch (e) {
+      print("Error checking liked videos: $e");
+      // If there's an error, assume none are liked
+      for (var video in videos) {
+        video["isLikedByUser"] = false;
+      }
     }
   }
 
@@ -99,8 +147,17 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
         final body = json.decode(response.body);
 
         setState(() {
-          // overwrite likes array with dummy values so .length still works
+          // Update likes count
           videos[index]["likes"] = List.filled(body["likes"], "x");
+          
+          // Update liked status
+          if (likedVideos.contains(videoId)) {
+            likedVideos.remove(videoId);
+            videos[index]["isLikedByUser"] = false;
+          } else {
+            likedVideos.add(videoId);
+            videos[index]["isLikedByUser"] = true;
+          }
         });
       } else {
         print("Failed to like: ${response.body}");
@@ -179,8 +236,12 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
                       childAspectRatio: 0.55,
                       padding: const EdgeInsets.all(16),
                       children:
-                          videos.map((video) {
-                            final index = videos.indexOf(video);
+                          videos.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final video = entry.value;
+                            final videoId = video["_id"];
+                            final isLiked = video["isLikedByUser"] == true;
+                            
                             return GestureDetector(
                               onTap: () {
                                 Navigator.pushNamed(
@@ -251,12 +312,12 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
-                                        CircleAvatar(
-                                          radius: 14,
-                                          backgroundImage: NetworkImage(
-                                            "${dotenv.env['BACKEND_URL']}${video['uploader']['avatarUrl'] ?? '/BeFab.png'}",
-                                          ),
-                                        ),
+                                        // CircleAvatar(
+                                        //   radius: 14,
+                                        //   backgroundImage: NetworkImage(
+                                        //     "${dotenv.env['BACKEND_URL']}${video['uploader']['avatarUrl'] ?? '/BeFab.png'}",
+                                        //   ),
+                                        // ),
                                         const SizedBox(width: 3),
                                         Text(
                                           video["uploader"]['username'] ??
@@ -270,16 +331,23 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
                                         GestureDetector(
                                           onTap:
                                               () => toggleLike(
-                                                video["_id"],
+                                                videoId,
                                                 index,
                                               ),
                                           child: Row(
                                             children: [
-                                              SvgPicture.asset(
-                                                'assets/images/like.svg',
-                                                width: 16,
-                                                height: 16,
-                                              ),
+                                              // Use different icon based on like status
+                                              isLiked
+                                                ? Image.asset(
+                                                    'assets/images/redheart.png',
+                                                    width: 16,
+                                                    height: 16,
+                                                  )
+                                                : SvgPicture.asset(
+                                                    'assets/images/like.svg',
+                                                    width: 16,
+                                                    height: 16,
+                                                  ),
                                               const SizedBox(width: 3),
                                               Padding(
                                                 padding: const EdgeInsets.only(
@@ -287,9 +355,12 @@ class _VideoCategoriesScreenState extends State<VideoCategoriesScreen> {
                                                 ),
                                                 child: Text(
                                                   "${(video["likes"] as List).length}",
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.w400,
+                                                    color: isLiked 
+                                                      ? const Color(0xFF862633) // Red color for liked count
+                                                      : Colors.black,
                                                   ),
                                                 ),
                                               ),
@@ -337,7 +408,7 @@ class ToggleButtonsRow extends StatelessWidget {
     required this.onChanged,
   });
 
-  final List<String> labels = const ['BeFAB HBCU', 'Mentor Meetup', 'Students'];
+  final List<String> labels = const ['BeFAB NCCU', 'Mentor Meetup', 'Students'];
 
   @override
   Widget build(BuildContext context) {

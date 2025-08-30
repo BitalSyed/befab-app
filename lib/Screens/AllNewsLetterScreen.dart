@@ -150,7 +150,7 @@ class _AllNewslettersScreenState extends State<AllNewslettersScreen> {
                                   "Read",
                                   style: GoogleFonts.inter(
                                     color: const Color(0xFF862633),
-                                    fontSize: 14,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w400,
                                   ),
                                 ),

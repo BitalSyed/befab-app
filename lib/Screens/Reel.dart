@@ -115,7 +115,7 @@ Future<void> _submitReel() async {
         ? _captionController.text
         : "";
     request.fields['caption'] = _captionController.text;
-    request.fields['category'] = "BeFAB HBCU"; // category is empty
+    request.fields['category'] = "Students"; // category is empty
     request.fields['type'] = _category ?? "reel"; // comes from previous screen
     request.fields['durationSec'] = durationSec.toString();
 

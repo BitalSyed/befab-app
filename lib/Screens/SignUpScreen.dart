@@ -183,7 +183,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Join BeFAB HBCU',
+                    'Join BeFAB NCCU',
                     style: GoogleFonts.lexend(
                       fontWeight: FontWeight.w700,
                       fontSize: 28,
@@ -191,18 +191,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Get access to our weight loss and diabetes management app tailored for the HBCU community.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF4E4E4E),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
+                  // Padding(
+                  //   padding: const EdgeInsets.symmetric(vertical: 8),
+                  //   child: Text(
+                  //     'Get access to our weight loss and diabetes management app tailored for the HBCU community.',
+                  //     textAlign: TextAlign.center,
+                  //     style: GoogleFonts.inter(
+                  //       color: const Color(0xFF4E4E4E),
+                  //       fontSize: 13,
+                  //       fontWeight: FontWeight.w400,
+                  //     ),
+                  //   ),
+                  // ),
                   const SizedBox(height: 24),
                   Column(
                     children: [

@@ -423,10 +423,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return "Good Morning";
-    if (hour < 17) return "Good Afternoon";
-    return "Good Evening";
+    final now = DateTime.now();
+    final hour = now.hour;
+    final minute = now.minute;
+    final decimalTime = hour + (minute / 60.0);
+
+    // US cultural context - earlier mornings, later evenings
+    if (decimalTime >= 5.0 && decimalTime < 12.0) {
+      if (decimalTime < 6.0) return "Early Riser! Good Morning";
+      if (decimalTime < 8.0) return "Rise and Shine! Good Morning";
+      return "Good Morning";
+    } else if (decimalTime >= 12.0 && decimalTime < 17.0) {
+      if (decimalTime < 13.0) return "Good Afternoon! Lunch time?";
+      return "Good Afternoon";
+    } else if (decimalTime >= 17.0 && decimalTime < 22.0) {
+      if (decimalTime < 19.0) return "Good Evening! How was your day?";
+      return "Good Evening";
+    } else {
+      // Late night (10 PM - 4:59 AM)
+      if (decimalTime >= 22.0 || decimalTime < 5.0) {
+        return hour < 2 ? "Up late? Good Night" : "Good Night";
+      }
+      return "Hello";
+    }
   }
 
   @override
@@ -451,26 +470,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             CircleAvatar(radius: 20, backgroundImage: NetworkImage(avatarUrl)),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isLoading ? "Loading..." : "Hi, $firstName $lastName",
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
+            Expanded(
+              // ← This is the key fix
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isLoading ? "Loading..." : "Hi, $firstName $lastName",
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _getGreeting(),
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF9C9B9D),
+                  const SizedBox(height: 2),
+                  Text(
+                    _getGreeting(),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF9C9B9D),
+                    ),
+                    softWrap: true, // ← Ensure wrapping is enabled
+                    overflow:
+                        TextOverflow.visible, // ← Allow text to wrap visibly
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -606,7 +631,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _buildImageCard(
                           context,
                           "assets/images/groups2.svg",
-                          "Group",
+                          "Groups",
                           "",
                           "/groups",
                         ),
@@ -639,14 +664,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
-                        _buildIconBoxWithText(
-                          context,
-                          'assets/images/log.svg',
-                          'Log Activity',
-                          "/log",
-                        ),
+                        // _buildIconBoxWithText(
+                        //   context,
+                        //   'assets/images/log.svg',
+                        //   'Log Activity',
+                        //   "/log",
+                        // ),
                         _buildIconBoxWithText(
                           context,
                           'assets/images/goal.svg',
@@ -659,12 +684,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           'Join Competition',
                           "/competitions-list",
                         ),
-                        _buildIconBoxWithText(
-                          context,
-                          'assets/images/resource.svg',
-                          'Resource',
-                          "/dashboard",
-                        ),
+                        // _buildIconBoxWithText(
+                        //   context,
+                        //   'assets/images/resource.svg',
+                        //   'Resource',
+                        //   "/dashboard",
+                        // ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -756,6 +781,12 @@ Widget _buildIconBoxWithText(
           width: 56,
           height: 56,
           padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(
+            left: 12.0, // Left padding
+            top: 0.0, // Top padding
+            right: 12.0, // Right padding
+            bottom: 0.0, // Bottom padding
+          ),
           decoration: BoxDecoration(
             color: const Color(0xFFD9D9D9),
             borderRadius: BorderRadius.circular(12),
@@ -781,7 +812,12 @@ Widget _buildImageCard(
   String route,
 ) {
   return Padding(
-    padding: const EdgeInsets.all(8.0),
+    padding: const EdgeInsets.only(
+      left: 8.0, // Left padding
+      top: 8.0, // Top padding
+      right: 8.0, // Right padding
+      bottom: 8.0, // Bottom padding
+    ),
     child: GestureDetector(
       onTap: () {
         if (route.isNotEmpty) {
@@ -790,7 +826,12 @@ Widget _buildImageCard(
       },
       child: Container(
         width: 80,
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.only(
+          left: 4.0, // Left padding
+          top: 18.0, // Top padding
+          right: 4.0, // Right padding
+          bottom: 4.0, // Bottom padding
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFFF3F3F3),
           borderRadius: BorderRadius.circular(12),

@@ -212,7 +212,7 @@ class _SurveyscreenState extends State<Surveyscreen> {
               duration: "${s["durationMin"] ?? 5} min.",
               timeText: s["dueDate"] != null
                   ? "due on ${s["dueDate"].toString().substring(0, 10)}"
-                  : "No due date",
+                  : "",
               buttonText: "Start Survey",
               image: "assets/images/alert.svg", // you can improve mapping icons later
               onButtonPressed: () => startSurvey(s["_id"]),

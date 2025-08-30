@@ -41,7 +41,7 @@ class SplashScreen extends StatelessWidget {
                     SizedBox(
                       width: fixedWidth,
                       child: Text(
-                        'BeFAB HBCU',
+                        'BeFAB NCCU',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.lexend(
                           fontWeight: FontWeight.bold,

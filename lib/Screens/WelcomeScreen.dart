@@ -58,7 +58,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                     ),
                     TextSpan(
-                      text: 'BeFAB HBCU ',
+                      text: 'BeFAB NCCU ',
                       style: GoogleFonts.lexend(
                         fontWeight: FontWeight.bold,
                         fontSize: 24,
@@ -78,18 +78,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 textAlign: TextAlign.center,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 16),
-              child: Text(
-                'Get access to our weight loss and diabetes management app tailored for the HBCU community.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  color: Color(0xFF4E4E4E),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
+            // Padding(
+            //   padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 16),
+            //   child: Text(
+            //     'Get access to our weight loss and diabetes management app tailored for the NCCU community.',
+            //     textAlign: TextAlign.center,
+            //     style: GoogleFonts.inter(
+            //       color: Color(0xFF4E4E4E),
+            //       fontSize: 14,
+            //       fontWeight: FontWeight.w400,
+            //     ),
+            //   ),
+            // ),
             const SizedBox(height: 24),
             Center(
               child: Image.asset(

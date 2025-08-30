@@ -57,18 +57,8 @@ final List<Map<String, dynamic>> menuItems = [
     'route': '/calendar'
   },
   {
-    'title': 'Activities',
-    'icon': 'assets/images/activities.svg',
-    'route': '/fitness'
-  },
-  {
-    'title': 'Resources',
-    'icon': 'assets/images/resources.svg',
-    'route': '/resources'
-  },
-  {
     'title': 'Surveys',
-    'icon': 'assets/images/alert.svg',
+    'icon': 'assets/images/resources.svg',
     'route': '/survey'
   },
   {
