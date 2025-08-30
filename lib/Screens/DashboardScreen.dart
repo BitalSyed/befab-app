@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:health/health.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
@@ -33,12 +34,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _fetchUser();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadHealthData();
-    });
     loadGoals();
-    data = getDWMPercentagesForStepsAndDistance();
     _loadNotifications();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadHealthData(); // wait for health data to load
+      setState(() {
+        data = getDWMPercentagesForStepsAndDistance();
+      });
+    });
   }
 
   Future<void> _loadNotifications() async {
@@ -190,6 +194,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final raw = healthData![type];
     if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
 
+    // Get today's date in YYYY-MM-DD format
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // --- pick the most common unit present in the list ---
     String _resolveUnit(List list) {
       final counts = <String, int>{};
       for (final e in list) {
@@ -209,23 +217,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final unitFromData = _resolveUnit(raw);
 
+    // --- sum numeric values for TODAY only ---
     num total = 0;
 
     for (final e in raw) {
       if (e is! Map) continue;
 
+      // Check if the entry is from today
+      final dateFrom = e['dateFrom'];
+      if (dateFrom is! String || !dateFrom.contains(today)) {
+        continue; // Skip entries not from today
+      }
+
       final value = e['value'];
-      if (value != null) {
-        total += value.numericValue;
+
+      num? numericValue;
+
+      if (value is NumericHealthValue) {
+        // ✅ plugin object case
+        numericValue = value.numericValue;
+      } else if (value is Map) {
+        // ✅ in case the plugin/data source returns it as a Map
+        numericValue = value['numericValue'] as num?;
+      }
+
+      if (numericValue != null) {
+        total += numericValue;
       }
     }
 
+    // optional unit conversion
     String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
     if (convertMetersToKm && unitFromData == "METER") {
       total = total / 1000;
       outUnit = "km";
     }
 
+    // format nicely
     String formatted;
     if (total % 1 == 0) {
       formatted = total.toInt().toString();
@@ -244,46 +272,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Get the actual values for steps and distance
     final stepsData = getHealthValue("HealthDataType.STEPS");
-    final distanceData = getHealthValue(
-      "HealthDataType.DISTANCE_DELTA",
-      convertMetersToKm: true,
-    );
-
-    // For demo purposes, let's use some realistic values
-    // In a real app, you would calculate these based on user goals or averages
-    double stepsDaily =
+    final distanceData = getHealthValue("HealthDataType.DISTANCE_DELTA");
+    print("Result: ${stepsData}");
+    // Parse today's values
+    double stepsToday =
         double.tryParse(stepsData["data"]?.toString() ?? "0") ?? 0;
-    double distanceDaily =
+    double distanceToday =
         double.tryParse(distanceData["data"]?.toString() ?? "0") ?? 0;
 
-    // Set reasonable targets (adjust these based on your app's requirements)
-    const double dailyStepsTarget = 10000;
-    const double dailyDistanceTarget = 8.0; // 8 km
+    // US-based healthy targets (CDC recommendations)
+    const double dailyStepsTarget = 10000; // 10,000 steps per day
+    const double dailyDistanceTarget = 8000; // 8 km (≈5 miles) per day
 
     // Calculate percentages
+    double stepsPercentage =
+        (stepsToday / dailyStepsTarget * 100).clamp(0, 100).toDouble();
+    double distancePercentage =
+        (distanceToday / dailyDistanceTarget * 100).clamp(0, 100).toDouble();
+
     result["STEPS"] = {
-      "daily": (stepsDaily / dailyStepsTarget * 100).clamp(0, 100).toDouble(),
-      "weekly":
-          ((stepsDaily * 7) / (dailyStepsTarget * 7) * 100)
-              .clamp(0, 100)
-              .toDouble(),
-      "monthly":
-          ((stepsDaily * 30) / (dailyStepsTarget * 30) * 100)
-              .clamp(0, 100)
-              .toDouble(),
+      "daily": stepsPercentage,
+      "weekly": stepsPercentage, // For simplicity, using same as daily
+      "monthly": stepsPercentage, // For simplicity, using same as daily
     };
 
     result["DISTANCE"] = {
-      "daily":
-          (distanceDaily / dailyDistanceTarget * 100).clamp(0, 100).toDouble(),
-      "weekly":
-          ((distanceDaily * 7) / (dailyDistanceTarget * 7) * 100)
-              .clamp(0, 100)
-              .toDouble(),
-      "monthly":
-          ((distanceDaily * 30) / (dailyDistanceTarget * 30) * 100)
-              .clamp(0, 100)
-              .toDouble(),
+      "daily": distancePercentage,
+      "weekly": distancePercentage, // For simplicity, using same as daily
+      "monthly": distancePercentage, // For simplicity, using same as daily
     };
 
     return result;
@@ -823,9 +839,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               size: 70,
               color: Color(0xFF862633),
             ),
-          onPressed: () {
-            Navigator.pushNamed(context, "/all-reels");
-          },
+            onPressed: () {
+              Navigator.pushNamed(context, "/all-reels");
+            },
           ),
         ),
       ),
@@ -834,354 +850,302 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 0),
     );
   }
-}
 
-// ----------------- UI Helpers -------------------
+  // ----------------- UI Helpers -------------------
 
-Widget _buildGoalRow(String title, String subtitle, String percent) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12.0),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w400,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.inter(
-                color: Colors.grey,
-                fontWeight: FontWeight.w400,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-        Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade300,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            percent,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w400),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _buildIconBoxWithText(
-  BuildContext context,
-  String imagePath,
-  String label,
-  String route,
-) {
-  return GestureDetector(
-    onTap: () {
-      if (route.isNotEmpty) {
-        Navigator.pushNamed(context, route); // ✅ navigate by route
-      }
-    },
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 56,
-          height: 56,
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.only(
-            left: 12.0, // Left padding
-            top: 0.0, // Top padding
-            right: 12.0, // Right padding
-            bottom: 0.0, // Bottom padding
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFD9D9D9),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: SvgPicture.asset(imagePath, fit: BoxFit.contain),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w400),
-        ),
-        const SizedBox(height: 36),
-      ],
-    ),
-  );
-}
-
-Widget _buildImageCard(
-  BuildContext context,
-  String imagePath,
-  String title,
-  String subtitle,
-  String route,
-) {
-  return Padding(
-    padding: const EdgeInsets.only(
-      left: 8.0, // Left padding
-      top: 8.0, // Top padding
-      right: 8.0, // Right padding
-      bottom: 8.0, // Bottom padding
-    ),
-    child: GestureDetector(
-      onTap: () {
-        if (route.isNotEmpty) {
-          Navigator.pushNamed(context, route); // ✅ use context here
-        }
-      },
-      child: Container(
-        width: 80,
-        padding: const EdgeInsets.only(
-          left: 4.0, // Left padding
-          top: 18.0, // Top padding
-          right: 4.0, // Right padding
-          bottom: 4.0, // Bottom padding
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3F3F3),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SvgPicture.asset(
-              imagePath,
-              width: 32,
-              height: 32,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: Colors.black,
-                fontWeight: FontWeight.w400,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.grey,
-                fontWeight: FontWeight.w400,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
-  return StatefulBuilder(
-    builder: (BuildContext context, StateSetter setState) {
-      // Initialize state variables
-      String selectedPeriod = "Daily";
-
-      // Function to handle period selection
-      void selectPeriod(String period) {
-        setState(() {
-          selectedPeriod = period;
-        });
-      }
-
-      // Get percentages for the selected period
-      double stepsPercentage =
-          percentages?["STEPS"]?[selectedPeriod.toLowerCase()] ?? 0;
-      double distancePercentage =
-          percentages?["DISTANCE"]?[selectedPeriod.toLowerCase()] ?? 0;
-
-      return Card(
-        color: const Color(0xFFF3F3F3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
+  Widget _buildGoalRow(String title, String subtitle, String percent) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Physical activity tracker',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w400,
-                      fontSize: 16,
-                    ),
-                  ),
-                  // const Icon(Icons.keyboard_arrow_up),
-                ],
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w400,
+                  fontSize: 14,
+                ),
               ),
               const SizedBox(height: 4),
-              Row(
-                children: [
-                  _buildSegmentButton(
-                    "Daily",
-                    selectedPeriod == "Daily",
-                    onTap: () => selectPeriod("Daily"),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildSegmentButton(
-                    "Weekly",
-                    selectedPeriod == "Weekly",
-                    onTap: () => selectPeriod("Weekly"),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildSegmentButton(
-                    "Monthly",
-                    selectedPeriod == "Monthly",
-                    onTap: () => selectPeriod("Monthly"),
-                  ),
-                ],
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 13,
+                ),
               ),
-              const SizedBox(height: 24),
-
-              // Steps progress bar
-              _buildActivityProgressBar("Steps", stepsPercentage, context),
-              const SizedBox(height: 16),
-
-              // Distance progress bar
-              _buildActivityProgressBar(
-                "Distance",
-                distancePercentage,
-                context,
+            ],
+          ),
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              percent,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const SizedBox(height: 24),
-              // const Align(
-              //   alignment: Alignment.centerRight,
-              //   child: Text(
-              //     "view details",
-              //     style: TextStyle(fontSize: 11, color: Color(0xFF862633)),
-              //   ),
-              // ),
+  Widget _buildIconBoxWithText(
+    BuildContext context,
+    String imagePath,
+    String label,
+    String route,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        if (route.isNotEmpty) {
+          Navigator.pushNamed(context, route); // ✅ navigate by route
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(
+              left: 12.0, // Left padding
+              top: 0.0, // Top padding
+              right: 12.0, // Right padding
+              bottom: 0.0, // Bottom padding
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD9D9D9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SvgPicture.asset(imagePath, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w400),
+          ),
+          const SizedBox(height: 36),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageCard(
+    BuildContext context,
+    String imagePath,
+    String title,
+    String subtitle,
+    String route,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: 8.0, // Left padding
+        top: 8.0, // Top padding
+        right: 8.0, // Right padding
+        bottom: 8.0, // Bottom padding
+      ),
+      child: GestureDetector(
+        onTap: () {
+          if (route.isNotEmpty) {
+            Navigator.pushNamed(context, route); // ✅ use context here
+          }
+        },
+        child: Container(
+          width: 80,
+          padding: const EdgeInsets.only(
+            left: 4.0, // Left padding
+            top: 18.0, // Top padding
+            right: 4.0, // Right padding
+            bottom: 4.0, // Bottom padding
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F3F3),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SvgPicture.asset(
+                imagePath,
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.black,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
-      );
-    },
-  );
-}
-
-// Helper method to build individual progress bars
-Widget _buildActivityProgressBar(
-  String title,
-  double percentage,
-  BuildContext context,
-) {
-  double progress = percentage / 100;
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        title,
-        style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
       ),
-      const SizedBox(height: 8),
-      Stack(
-        children: [
-          Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(12),
+    );
+  }
+
+  Widget _buildActivityTrackerCard(BuildContext context, dynamic percentages) {
+    print("Activity percentages: $percentages");
+    return Card(
+      color: const Color(0xFFF3F3F3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Physical activity tracker',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  'Today',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 12,
+                    color: const Color(0xFF862633),
+                  ),
+                ),
+              ],
             ),
-          ),
-          FractionallySizedBox(
-            widthFactor: progress,
-            child: Container(
+            const SizedBox(height: 16),
+
+            // Steps progress bar
+            _buildActivityProgressBar(
+              "Steps",
+              (percentages?["STEPS"]?["daily"]) ?? 0,
+              context,
+            ),
+            const SizedBox(height: 16),
+
+            // Distance progress bar
+            _buildActivityProgressBar(
+              "Distance",
+              (percentages?["DISTANCE"]?["daily"]) ?? 0,
+              context,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build individual progress bars
+  Widget _buildActivityProgressBar(
+    String title,
+    double percentage,
+    BuildContext context,
+  ) {
+    double progress = percentage / 100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Stack(
+          children: [
+            Container(
               height: 10,
               decoration: BoxDecoration(
-                color: const Color(0xFF862633),
+                color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 6),
-      Stack(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "0%",
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF4E4E4E),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
+            FractionallySizedBox(
+              widthFactor: progress,
+              child: Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF862633),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-              Text(
-                "100%",
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF4E4E4E),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-          Positioned(
-            left: progress * MediaQuery.of(context).size.width * 0.72,
-            child: Text(
-              "${percentage.round()}%",
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: const Color(0xFF4E4E4E),
               ),
             ),
-          ),
-        ],
-      ),
-    ],
-  );
-}
-
-Widget _buildSegmentButton(
-  String text,
-  bool isSelected, {
-  VoidCallback? onTap,
-}) {
-  return GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF862633) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF862633), width: 1),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isSelected ? Colors.white : const Color(0xFF862633),
-          fontSize: 12,
+          ],
         ),
-      ),
-    ),
-  );
+        const SizedBox(height: 6),
+        Stack(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "0%",
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF4E4E4E),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                Text(
+                  "100%",
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF4E4E4E),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              left: progress * MediaQuery.of(context).size.width * 0.72,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(
+                    6,
+                  ), // optional rounded corners
+                ),
+                child: Text(
+                  "${percentage.round()}%",
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFF4E4E4E),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }

@@ -24,9 +24,8 @@ class _MessagesPageState extends State<MessagesPage> {
   @override
   void initState() {
     super.initState();
-    _fetchChats();
-    _fetchUserId();
-    
+    _initData();
+
     // Listen for changes in search text
     _searchController.addListener(() {
       if (_searchController.text.isEmpty) {
@@ -36,6 +35,11 @@ class _MessagesPageState extends State<MessagesPage> {
         });
       }
     });
+  }
+
+  Future<void> _initData() async {
+    await _fetchUserId(); // wait until userId is fetched
+    await _fetchChats(); // then fetch chats
   }
 
   @override
@@ -67,25 +71,28 @@ class _MessagesPageState extends State<MessagesPage> {
       if (res.statusCode == 200) {
         final List data = json.decode(res.body);
         setState(() {
-          messages = data.map<Map<String, dynamic>>((chat) {
-            final lastMessage = chat['lastMessage'] ?? {};
-            final participant = chat['participants'].firstWhere(
-              (p) => p['_id'] != myUserId,
-              orElse: () => {},
-            );
+          messages =
+              data.map<Map<String, dynamic>>((chat) {
+                final lastMessage = chat['lastMessageAt'] ?? {};
+                final participant = chat['participants'].firstWhere( (p) => p['_id'] != myUserId, orElse: () => {}, );
 
-            return {
-              "chatId": chat["_id"],
-              "userId": participant['_id'], // ✅ store other participant ID
-              "name": participant['name'] ??
-                  "${participant['firstName'] ?? ''} ${participant['lastName'] ?? ''}".trim(),
-              "msg": lastMessage['content'] ?? "",
-              "time": lastMessage['createdAt'] ?? "",
-              "avatar": (participant['avatarUrl'] as String?)?.trim().isNotEmpty == true
-                  ? participant['avatarUrl']
-                  : "${dotenv.env['BACKEND_URL']}/BeFab.png",
-            };
-          }).toList();
+                return {
+                  "chatId": chat["_id"],
+                  "userId": participant['_id'], // ✅ store other participant ID
+                  "user": participant['username'], // ✅ store other participant ID
+                  "name":
+                      "${participant['firstName']} ${participant['lastName']}",
+                  "msg": "",
+                  "time": lastMessage ?? "",
+                  "avatar":
+                      (participant['avatarUrl'] as String?)
+                                  ?.trim()
+                                  .isNotEmpty ==
+                              true
+                          ? participant['avatarUrl']
+                          : "${dotenv.env['BACKEND_URL']}/BeFab.png",
+                };
+              }).toList();
           loading = false;
         });
       } else {
@@ -122,16 +129,34 @@ class _MessagesPageState extends State<MessagesPage> {
     if (res.statusCode == 200) {
       final List data = json.decode(res.body);
       setState(() {
-        searchResults = data.map<Map<String, dynamic>>((user) {
-          return {
-            "userId": user['_id'],
-            "name": user['name'] ??
-                "${user['firstName'] ?? ''} ${user['lastName'] ?? ''}".trim(),
-            "avatar": (user['avatarUrl'] as String?)?.trim().isNotEmpty == true
-                ? user['avatarUrl']
-                : "${dotenv.env['BACKEND_URL']}/BeFab.png",
-          };
-        }).toList();
+        searchResults =
+            data.map<Map<String, dynamic>>((user) {
+              // "chatId": chat["_id"],
+              //     "userId": participant['_id'], // ✅ store other participant ID
+              //     "name":
+              //         "${participant['firstName']} ${participant['lastName']}",
+              //     "msg": "",
+              //     "time": lastMessage ?? "",
+              //     "avatar":
+              //         (participant['avatarUrl'] as String?)
+              //                     ?.trim()
+              //                     .isNotEmpty ==
+              //                 true
+              //             ? participant['avatarUrl']
+              //             : "${dotenv.env['BACKEND_URL']}/BeFab.png",
+              return {
+                "chatId": user["chatId"],
+                "userId": user['_id'],
+                "name": "${user['firstName']} ${user['lastName']}".trim(),
+                "avatar":
+                    (user['avatarUrl'] as String?)?.trim().isNotEmpty == true
+                        ? user['avatarUrl']
+                        : "${dotenv.env['BACKEND_URL']}/BeFab.png",
+                "msg": "",
+                "user": user['username'],
+                "time": "",
+              };
+            }).toList();
       });
     }
   }
@@ -140,24 +165,23 @@ class _MessagesPageState extends State<MessagesPage> {
     final token = await storage.read(key: "token");
     if (token == null) return;
 
-    
-final url = "${dotenv.env['BACKEND_URL']}/app/chats";
-final body = jsonEncode({
-  "participantIds": [user['userId']], // sending userId in JSON body
-});
+    final url = "${dotenv.env['BACKEND_URL']}/app/chats";
+    final body = jsonEncode({
+      "participantIds": [user['userId']], // sending userId in JSON body
+    });
 
-final res = await http.post(
-  Uri.parse(url),
-  headers: {
-    "Authorization": "Bearer $token",
-    "Content-Type": "application/json", // important for JSON body
-  },
-  body: body,
-);
+    final res = await http.post(
+      Uri.parse(url),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json", // important for JSON body
+      },
+      body: body,
+    );
 
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
-      final chatId = data['chatId'];
+      final chatId = data['_id'];
 
       if (mounted) {
         // Clear search and return to messages list
@@ -166,7 +190,7 @@ final res = await http.post(
           isSearching = false;
           searchResults = [];
         });
-        
+print("Chat: $chatId $data with user ${user['userId']}");
         // Navigate to chat screen
         Navigator.pushNamed(
           context,
@@ -184,9 +208,9 @@ final res = await http.post(
     } else {
       // Handle error
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to start chat")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Failed to start chat")));
       }
     }
   }
@@ -195,17 +219,18 @@ final res = await http.post(
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: isSearching 
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: "Search users...",
-                  border: InputBorder.none,
-                ),
-                onChanged: _searchUsers,
-              )
-            : const Text("Messages"),
+        title:
+            isSearching
+                ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: "Search users...",
+                    border: InputBorder.none,
+                  ),
+                  onChanged: _searchUsers,
+                )
+                : const Text("Messages"),
         actions: [
           IconButton(
             icon: Icon(isSearching ? Icons.close : Icons.search),
@@ -237,21 +262,16 @@ final res = await http.post(
                       backgroundImage: NetworkImage(user['avatar']),
                     ),
                     title: Text(user['name']),
+                    subtitle: Text(user['user']),
                     onTap: () => _startChatWithUser(user),
                   );
                 },
               ),
             )
           else if (isSearching && !loading)
-            const Expanded(
-              child: Center(
-                child: Text("No users found"),
-              ),
-            )
+            const Expanded(child: Center(child: Text("No users found")))
           else if (loading)
-            const Expanded(
-              child: Center(child: CircularProgressIndicator()),
-            )
+            const Expanded(child: Center(child: CircularProgressIndicator()))
           else
             Expanded(
               child: ListView.builder(
@@ -263,7 +283,7 @@ final res = await http.post(
                       backgroundImage: NetworkImage(chat['avatar']),
                     ),
                     title: Text(chat['name']),
-                    subtitle: Text(chat['msg']),
+                    subtitle: Text(chat['user']),
                     onTap: () {
                       Navigator.pushNamed(
                         context,

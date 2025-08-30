@@ -55,7 +55,7 @@
   </queries>
 
   <application
-    android:label="befab"
+    android:label="BeFab"
     android:usesCleartextTraffic="true"
     android:name="${applicationName}"
     android:icon="@mipmap/ic_launcher">

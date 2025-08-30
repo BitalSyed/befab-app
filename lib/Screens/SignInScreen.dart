@@ -46,6 +46,7 @@ class _SignInScreenState extends State<SignInScreen> {
         print('token: ${body['token']}');
         print(body['token']);
         await writeSecureData('jwt', body['token']);
+        await writeSecureData('userId', body['id']);
 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

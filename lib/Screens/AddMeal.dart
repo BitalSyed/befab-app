@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // Ensure this import is at the top
+import 'package:health/health.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/health_service.dart';
 import 'package:http/http.dart' as http;
@@ -146,6 +147,10 @@ class _AddMealState extends State<AddMeal> {
     final raw = healthData![type];
     if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
 
+    // Get today's date in YYYY-MM-DD format
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // --- pick the most common unit present in the list ---
     String _resolveUnit(List list) {
       final counts = <String, int>{};
       for (final e in list) {
@@ -165,23 +170,43 @@ class _AddMealState extends State<AddMeal> {
 
     final unitFromData = _resolveUnit(raw);
 
+    // --- sum numeric values for TODAY only ---
     num total = 0;
 
     for (final e in raw) {
       if (e is! Map) continue;
 
+      // Check if the entry is from today
+      final dateFrom = e['dateFrom'];
+      if (dateFrom is! String || !dateFrom.contains(today)) {
+        continue; // Skip entries not from today
+      }
+
       final value = e['value'];
-      if (value != null) {
-        total += value.numericValue;
+
+      num? numericValue;
+
+      if (value is NumericHealthValue) {
+        // ✅ plugin object case
+        numericValue = value.numericValue;
+      } else if (value is Map) {
+        // ✅ in case the plugin/data source returns it as a Map
+        numericValue = value['numericValue'] as num?;
+      }
+
+      if (numericValue != null) {
+        total += numericValue;
       }
     }
 
+    // optional unit conversion
     String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
     if (convertMetersToKm && unitFromData == "METER") {
       total = total / 1000;
       outUnit = "km";
     }
 
+    // format nicely
     String formatted;
     if (total % 1 == 0) {
       formatted = total.toInt().toString();

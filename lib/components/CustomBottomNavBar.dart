@@ -80,7 +80,7 @@ void _onItemTapped(BuildContext context, int index) {
             height: 24,
             color: selectedIndex == 3 ? selectedColor : unselectedColor,
           ),
-          label: 'Video',
+          label: 'Videos',
         ),
         BottomNavigationBarItem(
           icon: SvgPicture.asset(
@@ -89,7 +89,7 @@ void _onItemTapped(BuildContext context, int index) {
             height: 24,
             color: selectedIndex == 4 ? selectedColor : unselectedColor,
           ),
-          label: 'Message',
+          label: 'Messages',
         ),
       ],
     );

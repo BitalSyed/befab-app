@@ -224,32 +224,32 @@ class _ChatScreenState extends State<ChatScreen> {
         style: const TextStyle(color: Colors.black, fontSize: 16),
       ),
       actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Stack(
-            children: [
-              const CircleAvatar(
-                radius: 18,
-                backgroundImage: AssetImage('assets/imas/pic8.jpg'),
-              ),
-              Positioned(
-                bottom: 2,
-                right: 2,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                    border: Border.fromBorderSide(
-                      BorderSide(color: Colors.white, width: 1.5),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      //   Padding(
+      //     padding: const EdgeInsets.only(right: 12),
+      //     child: Stack(
+      //       children: [
+      //         const CircleAvatar(
+      //           radius: 18,
+      //           backgroundImage: AssetImage('assets/imas/pic8.jpg'),
+      //         ),
+      //         Positioned(
+      //           bottom: 2,
+      //           right: 2,
+      //           child: Container(
+      //             width: 10,
+      //             height: 10,
+      //             decoration: const BoxDecoration(
+      //               color: Colors.green,
+      //               shape: BoxShape.circle,
+      //               border: Border.fromBorderSide(
+      //                 BorderSide(color: Colors.white, width: 1.5),
+      //               ),
+      //             ),
+      //           ),
+      //         ),
+      //       ],
+      //     ),
+      //   ),
       ],
     );
   }
@@ -258,7 +258,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildMessageInput() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 60),
       child: Row(
         children: [
           // Container(

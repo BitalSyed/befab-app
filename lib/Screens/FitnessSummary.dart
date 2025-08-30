@@ -8,6 +8,7 @@ import 'package:befab/components/VitalsCard.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:health/health.dart';
 import 'package:intl/intl.dart';
 import '../services/health_service.dart'; // Make sure to import your HealthService class
 import 'package:http/http.dart' as http;
@@ -63,7 +64,7 @@ class _FitnessSummaryState extends State<FitnessSummary> {
 
     debugPrint("✅ Platform: ${healthService.getPlatform()}");
     debugPrint(
-      "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')}",
+      "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')} AND ${data['HealthDataType.STEPS']}",
     );
   }
 
@@ -166,76 +167,85 @@ class _FitnessSummaryState extends State<FitnessSummary> {
 
   // --- Your function remains unchanged except mapping unit at the end ---
   Map<String, dynamic> getHealthValue(
-  String type, {
-  int decimalsIfDouble = 2,
-  bool convertMetersToKm = false,
-}) {
-  if (healthData == null) return {"data": "--", "unit": ""};
+    String type, {
+    int decimalsIfDouble = 2,
+    bool convertMetersToKm = false,
+  }) {
+    if (healthData == null) return {"data": "--", "unit": ""};
 
-  final raw = healthData![type];
-  if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
+    final raw = healthData![type];
+    if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
 
-  // Get today's date in YYYY-MM-DD format
-  final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    // Get today's date in YYYY-MM-DD format
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-  // --- pick the most common unit present in the list ---
-  String _resolveUnit(List list) {
-    final counts = <String, int>{};
-    for (final e in list) {
-      if (e is Map) {
-        String? u;
-        if (e['unit'] is String) {
-          u = e['unit'] as String;
-        }
-        if (u != null && u.isNotEmpty) {
-          counts[u] = (counts[u] ?? 0) + 1;
+    // --- pick the most common unit present in the list ---
+    String _resolveUnit(List list) {
+      final counts = <String, int>{};
+      for (final e in list) {
+        if (e is Map) {
+          String? u;
+          if (e['unit'] is String) {
+            u = e['unit'] as String;
+          }
+          if (u != null && u.isNotEmpty) {
+            counts[u] = (counts[u] ?? 0) + 1;
+          }
         }
       }
-    }
-    if (counts.isEmpty) return '';
-    return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-  }
-
-  final unitFromData = _resolveUnit(raw);
-
-  // --- sum numeric values for TODAY only ---
-  num total = 0;
-
-  for (final e in raw) {
-    if (e is! Map) continue;
-
-    // Check if the entry is from today
-    final dateFrom = e['dateFrom'];
-    if (dateFrom is! String || !dateFrom.contains(today)) {
-      continue; // Skip entries not from today
+      if (counts.isEmpty) return '';
+      return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
     }
 
-    final value = e['value'];
-    if (value != null && value is Map) {
-      final numericValue = value['numericValue'];
-      if (numericValue is num) {
+    final unitFromData = _resolveUnit(raw);
+
+    // --- sum numeric values for TODAY only ---
+    num total = 0;
+
+    for (final e in raw) {
+      if (e is! Map) continue;
+
+      // Check if the entry is from today
+      final dateFrom = e['dateFrom'];
+      if (dateFrom is! String || !dateFrom.contains(today)) {
+        continue; // Skip entries not from today
+      }
+
+      final value = e['value'];
+
+      num? numericValue;
+
+      if (value is NumericHealthValue) {
+        // ✅ plugin object case
+        numericValue = value.numericValue;
+      } else if (value is Map) {
+        // ✅ in case the plugin/data source returns it as a Map
+        numericValue = value['numericValue'] as num?;
+      }
+
+      if (numericValue != null) {
         total += numericValue;
       }
     }
+
+    // optional unit conversion
+    String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
+    if (convertMetersToKm && unitFromData == "METER") {
+      total = total / 1000;
+      outUnit = "km";
+    }
+
+    // format nicely
+    String formatted;
+    if (total % 1 == 0) {
+      formatted = total.toInt().toString();
+    } else {
+      formatted = total.toStringAsFixed(decimalsIfDouble);
+    }
+
+    return {"data": formatted, "unit": outUnit};
   }
 
-  // optional unit conversion
-  String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
-  if (convertMetersToKm && unitFromData == "METER") {
-    total = total / 1000;
-    outUnit = "km";
-  }
-
-  // format nicely
-  String formatted;
-  if (total % 1 == 0) {
-    formatted = total.toInt().toString();
-  } else {
-    formatted = total.toStringAsFixed(decimalsIfDouble);
-  }
-
-  return {"data": formatted, "unit": outUnit};
-}
   static final String _baseUrl = dotenv.env['BACKEND_URL'] ?? "";
 
   // Function to send JSON data
