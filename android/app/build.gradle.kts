@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.befab"
+        applicationId = "com.befab.fitness"
         minSdk = 26
         targetSdk = 35
         versionCode = flutter.versionCode
