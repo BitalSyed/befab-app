@@ -179,6 +179,7 @@ Widget? getTargetPage(String route) {
       onTap: () async {
         // 1️⃣ Delete token from secure storage
         await _secureStorage.delete(key: 'token');
+        await _secureStorage.delete(key: 'id');
 
         // 2️⃣ Navigate to /signin and remove all previous routes
         Navigator.pushNamedAndRemoveUntil(
