@@ -89,7 +89,7 @@ class _MessagesPageState extends State<MessagesPage> {
                                   ?.trim()
                                   .isNotEmpty ==
                               true
-                          ? participant['avatarUrl']
+                          ? "${dotenv.env['BACKEND_URL']}${participant['avatarUrl']}"
                           : "${dotenv.env['BACKEND_URL']}/BeFab.png",
                 };
               }).toList();
@@ -150,7 +150,7 @@ class _MessagesPageState extends State<MessagesPage> {
                 "name": "${user['firstName']} ${user['lastName']}".trim(),
                 "avatar":
                     (user['avatarUrl'] as String?)?.trim().isNotEmpty == true
-                        ? user['avatarUrl']
+                        ? "${dotenv.env['BACKEND_URL']}${user['avatarUrl']}"
                         : "${dotenv.env['BACKEND_URL']}/BeFab.png",
                 "msg": "",
                 "user": user['username'],

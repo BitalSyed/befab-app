@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:befab/Screens/ActivityCalendarPage.dart';
 import 'package:befab/Screens/ActivityFitness.dart';
 import 'package:befab/Screens/AddMeal.dart';
@@ -22,6 +24,8 @@ import 'package:befab/Screens/NewGoalEntryForm.dart';
 import 'package:befab/Screens/NewsLetterScreen.dart';
 import 'package:befab/Screens/Nutrition.dart';
 import 'package:befab/Screens/Nutrition2.dart';
+import 'package:befab/Screens/ProfileScreen.dart';
+import 'package:befab/Screens/SettingsScreen.dart';
 import 'package:befab/Screens/Reel.dart';
 import 'package:befab/Screens/SearchFood.dart';
 import 'package:befab/Screens/SignInScreen.dart';
@@ -41,6 +45,10 @@ import 'package:befab/services/health_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+
+final storage = FlutterSecureStorage();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,17 +57,69 @@ void main() async {
   // Ensure status bar is visible and styled
   SystemChrome.setSystemUIOverlayStyle(
     SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent, // Make it transparent or set a color
-      statusBarIconBrightness:
-          Brightness.dark, // Use `Brightness.light` for light icons
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
     ),
   );
 
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  Timer? _pingTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startPingIfNeeded();
+  }
+
+  void _startPingIfNeeded() async {
+    final userId = await storage.read(key: 'userId');
+    if (userId == null) return;
+
+    final backendUrl = dotenv.env['BACKEND_URL'] ?? '';
+    if (backendUrl.isEmpty) return;
+
+    // Immediately ping once
+    _ping(userId, backendUrl);
+
+    // Start periodic ping every 5 seconds
+    _pingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _ping(userId, backendUrl);
+    });
+  }
+
+  Future<void> _ping(String userId, String backendUrl) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$backendUrl/ping'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'userId': userId}),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Ping successful: ${response.body}');
+      } else {
+        debugPrint('Ping failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error pinging server: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _pingTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,12 +127,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'BeFAB HBCU',
       theme: ThemeData(
-        scaffoldBackgroundColor:
-            Colors.white, // Sets background for all screens
+        scaffoldBackgroundColor: Colors.white,
         primaryColor: const Color(0xFF862633),
         fontFamily: 'Helvetica',
       ),
-      // Use routes directly
       initialRoute: '/',
       routes: {
         '/': (context) => SplashScreen(),
@@ -87,13 +145,11 @@ class MyApp extends StatelessWidget {
         '/dashboard': (context) => DashboardScreen(),
         '/single-newsletter': (context) {
           final args =
-              ModalRoute.of(context)!.settings.arguments
-                  as Map<String, dynamic>?;
+              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
           final newsletterId = args?['newsletterId'];
 
           return SingleNewsletterScreen(newsletterId: newsletterId);
         },
-
         '/all-newsletters': (context) => AllNewslettersScreen(),
         '/video-categories': (context) => VideoCategoriesScreen(),
         '/single-video': (context) => SingleVideoScreen(),
@@ -101,11 +157,9 @@ class MyApp extends StatelessWidget {
         '/single-reel': (context) => SingleReel(),
         '/reel': (context) => Reel(),
         '/message': (context) => MessagesPage(),
-        // main.dart (or wherever your routes are defined)
         '/chat-screen': (context) {
           final args =
-              ModalRoute.of(context)!.settings.arguments
-                  as Map<String, dynamic>?;
+              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
 
           if (args == null ||
               args['chatId'] == null ||
@@ -121,7 +175,6 @@ class MyApp extends StatelessWidget {
             name: args['name'] as String? ?? "User",
           );
         },
-
         '/groups': (context) => GroupsPage(),
         '/fitness-group': (_) => FitnessGroupPage(),
         '/fitness-page': (context) => FitnessGroupPage(),
@@ -132,8 +185,7 @@ class MyApp extends StatelessWidget {
         '/survey': (_) => Surveyscreen(),
         '/survey-start': (context) {
           final args =
-              ModalRoute.of(context)!.settings.arguments
-                  as Map<String, dynamic>?;
+              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
           final surveyId = args?['surveyId'];
 
           return SurveyStartScreen(surveyId: surveyId);
@@ -149,6 +201,8 @@ class MyApp extends StatelessWidget {
         '/activity-fitness': (_) => ActivityFitness(),
         '/vitals-measurement': (_) => VitalsMeasurement(),
         '/body-composition': (_) => BodyCompositionScreen(),
+        '/profile': (_) => ProfileScreen(),
+        '/settings': (_) => SettingsScreen(),
       },
     );
   }

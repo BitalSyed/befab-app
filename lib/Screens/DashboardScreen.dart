@@ -505,7 +505,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           firstName = data["firstName"] ?? "";
           lastName = data["lastName"] ?? "";
-          profilePhoto = data["profilePhoto"] ?? "";
+          profilePhoto = data["avatarUrl"] ?? "";
           isLoading = false;
         });
       } else {
@@ -548,7 +548,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final fallbackAvatar = "${dotenv.env['BACKEND_URL']}/BeFab.png";
     final avatarUrl =
         profilePhoto.isNotEmpty
-            ? "${dotenv.env['BACKEND_URL']}/$profilePhoto"
+            ? "${dotenv.env['BACKEND_URL']}$profilePhoto"
             : fallbackAvatar;
 
     return Scaffold(
