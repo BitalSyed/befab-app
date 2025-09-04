@@ -24,7 +24,6 @@ class HealthService {
 
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.SLEEP_AWAKE,
-    // HealthDataType.SLEEP_IN_BED,
     HealthDataType.BODY_FAT_PERCENTAGE,
     HealthDataType.BODY_MASS_INDEX,
     HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
@@ -32,7 +31,6 @@ class HealthService {
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.RESTING_HEART_RATE,
     HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
-    // HealthDataType.EXERCISE_TIME,
     HealthDataType.TOTAL_CALORIES_BURNED,
     HealthDataType.WORKOUT,
     HealthDataType.SLEEP_DEEP,
