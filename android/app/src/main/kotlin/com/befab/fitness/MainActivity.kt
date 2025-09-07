@@ -1,4 +1,4 @@
-package com.example.befab
+package com.befab.fitness
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

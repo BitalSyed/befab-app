@@ -655,7 +655,7 @@ void updateNutritionTotals(Map<String, dynamic> nutritionData) {
                   name: 'Protein',
                   currentValue: '$totalP',
                   targetValue:
-                      '${(double.tryParse(getHealthValue('HealthDataType.WEIGHT')['data']?.toString() ?? "0") ?? 0.0 * 1.6).round()}',
+                      '50',
                   unit: 'g',
                 ),
                 NutritionItem(

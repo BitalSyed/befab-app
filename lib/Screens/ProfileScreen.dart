@@ -120,6 +120,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               subtitle: Text(profileData['username'] ?? "-"),
             ),
             ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: const Text("Record ID"),
+              subtitle: Text(profileData['userId'] ?? "-"),
+            ),
+            ListTile(
               leading: const Icon(Icons.badge),
               title: const Text("Full Name"),
               subtitle: Text("${profileData['firstName']} ${profileData['lastName']}" ?? "-"),

@@ -372,8 +372,15 @@ class _ActivityFitnessState extends State<ActivityFitness> {
                       imageColor: Color(0xFF862633),
                       imageBackgroundColor: Color.fromRGBO(134, 38, 51, 0.2),
                       title: "Distance",
-                      value: getHealthValue('HealthDataType.DISTANCE_DELTA')['data'],
-                      unit: getHealthValue('HealthDataType.DISTANCE_DELTA')['unit'],
+                      value: () {
+                    final raw =
+                        getHealthValue('HealthDataType.DISTANCE_DELTA')['data'];
+                    if (raw == '--') return '--';
+                    final meters = double.tryParse(raw.toString()) ?? 0;
+                    final miles = meters * 0.000621371;
+                    return "${miles.toStringAsFixed(2)}";
+                  }(),
+                      unit: 'mi',
                       goalLabel: "",
                       progress: 5.2 / 8.0,
                     ),

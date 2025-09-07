@@ -190,70 +190,109 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
     return {"data": formatted, "unit": outUnit};
   }
 
-String getAverageBodyFatCategory(double bodyFat) {
-  if (bodyFat < 18) {
-    return "Underfat";
-  } else if (bodyFat <= 30) {
-    return "Healthy range";
-  } else {
-    return "Overfat / Obese";
+  String getAverageBodyFatCategory(double bodyFat) {
+    if (bodyFat < 18) {
+      return "Underfat";
+    } else if (bodyFat <= 30) {
+      return "Healthy range";
+    } else {
+      return "Overfat / Obese";
+    }
   }
-}
 
-String getBmiCategory(double bmi) {
-  if (bmi < 18.5) {
-    return "Underweight";
-  } else if (bmi >= 18.5 && bmi < 25) {
-    return "Normal";
-  } else if (bmi >= 25 && bmi < 30) {
-    return "Overweight";
-  } else if (bmi >= 30 && bmi < 35) {
-    return "Obesity Class I";
-  } else if (bmi >= 35 && bmi < 40) {
-    return "Obesity Class II";
-  } else {
-    return "Obesity Class III";
+  String getBmiCategory(double bmi) {
+    if (bmi < 18.5) {
+      return "Underweight";
+    } else if (bmi >= 18.5 && bmi < 25) {
+      return "Normal";
+    } else if (bmi >= 25 && bmi < 30) {
+      return "Overweight";
+    } else if (bmi >= 30 && bmi < 35) {
+      return "Obesity Class I";
+    } else if (bmi >= 35 && bmi < 40) {
+      return "Obesity Class II";
+    } else {
+      return "Obesity Class III";
+    }
   }
-}
-
-
 
   @override
   Widget build(BuildContext context) {
- final allItems = [
-  CompositionItem(
-    label: 'Lean Body Mass (76%)',
-    percentage: double.tryParse(getHealthValue('HealthDataType.LEAN_BODY_MASS')?['data']?.toString() ?? '0') ?? 0.0,
-    color: Color(0xFF8B2635),
-  ),
-  CompositionItem(
-    label: 'Body Fat',
-    percentage: double.tryParse(getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')?['data']?.toString() ?? '0') ?? 0.0,
-    color: Color.fromRGBO(134, 38, 51, 0.6),
-  ),
-  CompositionItem(
-    label: 'BMI',
-    percentage: double.tryParse(getHealthValue('HealthDataType.BODY_MASS_INDEX')?['data']?.toString() ?? '0') ?? 0.0,
-    color: Color.fromRGBO(134, 38, 51, 0.4),
-  ),
-  CompositionItem(
-    label: 'Weight',
-    percentage: double.tryParse(getHealthValue('HealthDataType.BODY_MASS_INDEX')?['data']?.toString() ?? '0') ?? 0.0,
-    color: Color.fromRGBO(134, 38, 51, 0.2),
-  ),
-];    final List<HealthStat> healthStats = [
+    final allItems = [
+      CompositionItem(
+        label: 'Lean Body Mass (76%)',
+        percentage:
+            double.tryParse(
+              getHealthValue(
+                    'HealthDataType.LEAN_BODY_MASS',
+                  )?['data']?.toString() ??
+                  '0',
+            ) ??
+            0.0,
+        color: Color(0xFF8B2635),
+      ),
+      CompositionItem(
+        label: 'Body Fat',
+        percentage:
+            double.tryParse(
+              getHealthValue(
+                    'HealthDataType.BODY_FAT_PERCENTAGE',
+                  )?['data']?.toString() ??
+                  '0',
+            ) ??
+            0.0,
+        color: Color.fromRGBO(134, 38, 51, 0.6),
+      ),
+      CompositionItem(
+        label: 'BMI',
+        percentage:
+            double.tryParse(
+              getHealthValue(
+                    'HealthDataType.BODY_MASS_INDEX',
+                  )?['data']?.toString() ??
+                  '0',
+            ) ??
+            0.0,
+        color: Color.fromRGBO(134, 38, 51, 0.4),
+      ),
+      CompositionItem(
+        label: 'Weight',
+        percentage:
+            double.tryParse(
+              getHealthValue(
+                    'HealthDataType.BODY_MASS_INDEX',
+                  )?['data']?.toString() ??
+                  '0',
+            ) ??
+            0.0,
+        color: Color.fromRGBO(134, 38, 51, 0.2),
+      ),
+    ];
+    final List<HealthStat> healthStats = [
       HealthStat(
         title: "Weight",
-        value: getHealthValue('HealthDataType.WEIGHT')['data'],
-        unit: "kg",
+        value: () {
+          final raw = getHealthValue('HealthDataType.WEIGHT')['data'];
+          if (raw == '--') return '--';
+          final kg = double.tryParse(raw.toString()) ?? 0;
+          final lbs = kg * 2.20462;
+          return lbs.toStringAsFixed(1); // e.g. "154.3"
+        }(),
+        unit: "lb",
         lastUpdated: "",
         secondaryLabel: "",
         secondaryColor: Color(0xFF16A34A),
       ),
       HealthStat(
         title: "Height",
-        value: getHealthValue('HealthDataType.HEIGHT')['data'],
-        unit: getHealthValue('HealthDataType.HEIGHT')['unit'],
+        value: () {
+          final raw = getHealthValue('HealthDataType.HEIGHT')['data'];
+          if (raw == '--') return '--';
+          final meters = double.tryParse(raw.toString()) ?? 0;
+          final feet = meters * 3.28084;
+          return feet.toStringAsFixed(1); // e.g. "5.9"
+        }(),
+        unit: "ft",
         lastUpdated: "",
       ),
       HealthStat(
@@ -314,8 +353,18 @@ String getBmiCategory(double bmi) {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '${getHealthValue('HealthDataType.WEIGHT')['data']} KG',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    () {
+                      final raw =
+                          getHealthValue('HealthDataType.WEIGHT')['data'];
+                      if (raw == '--') return '-- lb';
+                      final kg = double.tryParse(raw.toString()) ?? 0;
+                      final lbs = kg * 2.20462;
+                      return "${lbs.toStringAsFixed(1)} lb";
+                    }(),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SizedBox(height: 8),
                   Text(
@@ -343,13 +392,25 @@ String getBmiCategory(double bmi) {
                       imageColor: Color(0xFFFF7D0E),
                       imageBackgroundColor: Color.fromRGBO(255, 125, 14, 0.2),
                       title: "BMI",
-                      value: getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'],
+                      value:
+                          getHealthValue(
+                            'HealthDataType.BODY_MASS_INDEX',
+                          )['data'],
                       unit: "",
-                      goalLabel: "${getBmiCategory(
-  double.tryParse(getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'].toString()) ?? 0.0
-)}",
-                      progress: (double.tryParse(getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'].toString()) ?? 0.0) / 25,
-                      startLabel: getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'],
+                      goalLabel:
+                          "${getBmiCategory(double.tryParse(getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'].toString()) ?? 0.0)}",
+                      progress:
+                          (double.tryParse(
+                                getHealthValue(
+                                  'HealthDataType.BODY_MASS_INDEX',
+                                )['data'].toString(),
+                              ) ??
+                              0.0) /
+                          25,
+                      startLabel:
+                          getHealthValue(
+                            'HealthDataType.BODY_MASS_INDEX',
+                          )['data'],
                       endLabel: '25',
                     ),
                   ),
@@ -359,13 +420,21 @@ String getBmiCategory(double bmi) {
                       imageColor: Color(0xFF2563EB),
                       imageBackgroundColor: Color.fromRGBO(37, 99, 235, 0.2),
                       title: "Body Fat",
-                      value: "${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%",
+                      value:
+                          "${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%",
                       unit: "",
-                      goalLabel: "${getAverageBodyFatCategory(
-  double.tryParse(getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data'].toString()) ?? 0.0
-)}",
-                      progress: (double.tryParse(getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data'].toString()) ?? 0.0) / 31,
-                      startLabel: '${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%',
+                      goalLabel:
+                          "${getAverageBodyFatCategory(double.tryParse(getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data'].toString()) ?? 0.0)}",
+                      progress:
+                          (double.tryParse(
+                                getHealthValue(
+                                  'HealthDataType.BODY_FAT_PERCENTAGE',
+                                )['data'].toString(),
+                              ) ??
+                              0.0) /
+                          31,
+                      startLabel:
+                          '${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%',
                       endLabel: '31%',
                     ),
                   ),

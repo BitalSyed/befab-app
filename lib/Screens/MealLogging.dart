@@ -24,6 +24,139 @@ class MealLogging extends StatefulWidget {
 }
 
 class _MealLoggingState extends State<MealLogging> {
+
+void _showPortionDialog(Map<String, dynamic> product) {
+  final TextEditingController portionController = TextEditingController();
+
+  // Try to auto-detect serving size from API
+  String detectedUnit = "g";
+  double detectedAmount = 100; // default: per 100g
+
+  if (product["serving_size"] != null) {
+    final serving = product["serving_size"].toString().toLowerCase();
+
+    if (serving.contains("tsp")) {
+      detectedUnit = "tsp";
+      detectedAmount = 5;
+    } else if (serving.contains("tbsp")) {
+      detectedUnit = "tbsp";
+      detectedAmount = 15;
+    } else if (serving.contains("cup")) {
+      detectedUnit = "cup";
+      detectedAmount = 240;
+    } else if (serving.contains("ml")) {
+      detectedUnit = "ml";
+      detectedAmount = double.tryParse(
+            RegExp(r"(\d+)")
+                .firstMatch(serving)
+                ?.group(1) ??
+            "240") ??
+        240;
+    } else if (serving.contains("g")) {
+      detectedUnit = "g";
+      detectedAmount = double.tryParse(
+            RegExp(r"(\d+)")
+                .firstMatch(serving)
+                ?.group(1) ??
+            "100") ??
+        100;
+    }
+  }
+
+  portionController.text = detectedAmount.toString();
+
+  final units = ["g", "ml", "tsp", "tbsp", "cup", "slice", "tub", "drink"];
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      String selectedUnit = detectedUnit;
+
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text("Portion Size for ${product['name']}"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: portionController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "Enter amount",
+                    hintText: "e.g. 2",
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButton<String>(
+                  value: selectedUnit,
+                  isExpanded: true,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        selectedUnit = value;
+                      });
+                    }
+                  },
+                  items: units
+                      .map((u) => DropdownMenuItem(
+                            value: u,
+                            child: Text(u),
+                          ))
+                      .toList(),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final amount = double.tryParse(portionController.text) ?? 1.0;
+
+                  final per100 = (product["calories"] ?? 0).toDouble();
+
+                  // 🔥 Apply rough conversions for tsp/tbsp/cup
+                  double grams = amount;
+                  switch (selectedUnit) {
+                    case "tsp":
+                      grams = amount * 5;
+                      break;
+                    case "tbsp":
+                      grams = amount * 15;
+                      break;
+                    case "cup":
+                      grams = amount * 240;
+                      break;
+                    case "ml":
+                      grams = amount; // assume 1ml ≈ 1g for water-based
+                      break;
+                    default:
+                      grams = amount;
+                  }
+
+                  double calories = (per100 / 100.0) * grams;
+
+                  Navigator.pop(context);
+
+                  _submitMealData1(
+                    "${product['name']} ($amount $selectedUnit)",
+                    calories,
+                  );
+                },
+                child: const Text("Add"),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+
   final HealthService healthService = HealthService();
   Map<String, dynamic>? healthData;
   final storage = FlutterSecureStorage();
@@ -938,14 +1071,13 @@ class _MealLoggingState extends State<MealLogging> {
                             builder: (_) => const BarcodeScannerScreen(),
                           ),
                         );
-                        if (result != null) {
+                        if (result != null && result['calories'] != null) {
                           debugPrint("✅ Scanned Barcode: $result");
-                          await _submitMealData1(
-                            result['name'],
-                            result['calories'],
-                          );
+
+                          _showPortionDialog(result);
                         }
                       },
+
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Row(

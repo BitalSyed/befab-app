@@ -4,7 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter/gestures.dart'; // ✅ Needed for TapGestureRecognizer
+import 'package:flutter/gestures.dart';
 
 // Import your two new screens
 import 'privacy_policy_screen.dart';
@@ -22,9 +22,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final firstNameController = TextEditingController();
   final lastNameController = TextEditingController();
   final usernameController = TextEditingController();
-  final userIdController = TextEditingController(); // Added user ID controller
+  final userIdController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController(); // ✅ New confirm password
 
   // Controllers for 2FA
   final twoFactorEmailController = TextEditingController();
@@ -33,13 +34,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool isLoading = false;
   bool isSendingCode = false;
 
+  // ✅ Track password visibility
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
   Future<void> _submitForm() async {
+    if (passwordController.text != confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Passwords do not match")),
+      );
+      return;
+    }
+
     final url = "${dotenv.env['BACKEND_URL']}/auth/signup";
     final body = {
       "firstName": firstNameController.text.trim(),
       "lastName": lastNameController.text.trim(),
       "username": usernameController.text.trim(),
-      "userId": userIdController.text.trim(), // Added user ID to the request
+      "userId": userIdController.text.trim(),
       "email": emailController.text.trim(),
       "password": passwordController.text,
       "code": otpController.text.trim(),
@@ -132,20 +144,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
         "controller": usernameController,
       },
       {
-        "label": "User ID", // Added User ID field
+        "label": "User ID",
         "iconPath": "assets/images/icon1.svg",
         "controller": userIdController,
-        "hint": "Enter your unique user ID",
+        "hint": "Enter your Record ID Number",
       },
       {
         "label": "Email address",
         "iconPath": "assets/images/icon2.svg",
         "controller": emailController,
-      },
-      {
-        "label": "Create password",
-        "iconPath": "assets/images/icon3.svg",
-        "controller": passwordController,
       },
     ];
 
@@ -198,175 +205,253 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       color: const Color(0xFF121714),
                     ),
                   ),
-                  const SizedBox(height: 2),
                   const SizedBox(height: 24),
-                  Column(
-                    children: [
-                      ...fields.map((field) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: TextField(
-                            controller: field["controller"],
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF638773),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            obscureText: field["label"] == "Create password",
-                            decoration: InputDecoration(
-                              hintText: field["hint"] ?? field["label"], // Use hint if provided
-                              hintStyle: GoogleFonts.inter(
-                                color: const Color(0xFF638773),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w400,
-                              ),
-                              filled: true,
-                              fillColor: const Color(0xFFF0F5F2),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              suffixIcon: field["label"] == "Username"
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          field["suffixText"],
-                                          style: GoogleFonts.inter(
-                                            color: const Color(0xFF638773),
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                              right: 8, left: 6),
-                                          child: SizedBox(
-                                            width: 22,
-                                            height: 22,
-                                            child: SvgPicture.asset(
-                                              field["iconPath"],
-                                              fit: BoxFit.contain,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Padding(
-                                      padding: const EdgeInsets.all(10),
+
+                  // Dynamic fields
+                  ...fields.map((field) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: TextField(
+                        controller: field["controller"],
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF638773),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: field["hint"] ?? field["label"],
+                          hintStyle: GoogleFonts.inter(
+                            color: const Color(0xFF638773),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF0F5F2),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          suffixIcon: field["label"] == "Username"
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      field["suffixText"],
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF638773),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                          right: 8, left: 6),
                                       child: SizedBox(
-                                        width: 14,
-                                        height: 14,
+                                        width: 22,
+                                        height: 22,
                                         child: SvgPicture.asset(
                                           field["iconPath"],
-                                          color: const Color(0xFF638773),
                                           fit: BoxFit.contain,
                                         ),
                                       ),
                                     ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-
-                      // 2FA Section Title
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16, bottom: 6),
-                        child: Text(
-                          "Two-Factor Authentication",
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-
-                      // Email Field with Get Code button
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: TextField(
-                          controller: twoFactorEmailController,
-                          decoration: InputDecoration(
-                            hintText: "Enter your email",
-                            hintStyle: GoogleFonts.inter(
-                              color: const Color(0xFF638773),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F5F2),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            suffixIcon: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              child: ElevatedButton(
-                                onPressed: isSendingCode
-                                    ? null
-                                    : _sendTwoFactorCode,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF638773),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 2,
+                                  ],
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: SvgPicture.asset(
+                                      field["iconPath"],
+                                      color: const Color(0xFF638773),
+                                      fit: BoxFit.contain,
+                                    ),
                                   ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  elevation: 0,
                                 ),
-                                child: isSendingCode
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : Text(
-                                        "Get Code",
-                                        style: GoogleFonts.inter(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                          ),
                         ),
                       ),
+                    );
+                  }).toList(),
 
-                      // OTP Field
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: TextField(
-                          controller: otpController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: "Enter the 6 digit OTP",
-                            hintStyle: GoogleFonts.inter(
-                              color: const Color(0xFF638773),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
+                  // Password field with toggle
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: TextField(
+                      controller: passwordController,
+                      obscureText: _obscurePassword,
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF638773),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "Create password",
+                        hintStyle: GoogleFonts.inter(
+                          color: const Color(0xFF638773),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF0F5F2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: const Color(0xFF638773),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Confirm Password field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: TextField(
+                      controller: confirmPasswordController,
+                      obscureText: _obscureConfirmPassword,
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF638773),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "Confirm password",
+                        hintStyle: GoogleFonts.inter(
+                          color: const Color(0xFF638773),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF0F5F2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirmPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: const Color(0xFF638773),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 2FA Section Title
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 6),
+                    child: Text(
+                      "Two-Factor Authentication",
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+
+                  // Email Field with Get Code button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: TextField(
+                      controller: twoFactorEmailController,
+                      decoration: InputDecoration(
+                        hintText: "Enter your email",
+                        hintStyle: GoogleFonts.inter(
+                          color: const Color(0xFF638773),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF0F5F2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: ElevatedButton(
+                            onPressed:
+                                isSendingCode ? null : _sendTwoFactorCode,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF638773),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 2,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
                             ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F5F2),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
+                            child: isSendingCode
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    "Get Code",
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                           ),
                         ),
                       ),
-                    ],
+                    ),
+                  ),
+
+                  // OTP Field
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: TextField(
+                      controller: otpController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: "Enter the 6 digit OTP",
+                        hintStyle: GoogleFonts.inter(
+                          color: const Color(0xFF638773),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF0F5F2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 16),
+
                   // ✅ Updated clickable Terms and Privacy
                   Text.rich(
                     TextSpan(
@@ -384,7 +469,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const TermsOfAgreementScreen(),
+                                  builder: (_) =>
+                                      const TermsOfAgreementScreen(),
                                 ),
                               );
                             },

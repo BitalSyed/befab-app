@@ -139,13 +139,20 @@ class _MyAppState extends State<MyApp> {
         '/signin': (context) => SignInScreen(),
         '/forgot-password-1': (context) => ForgotPassword1(),
         '/forgot-password-2': (context) => ForgotPassword2(),
-        '/forgot-password-3': (context) => ForgotPassword3(),
+        '/forgot-password-3': (context) {
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>;
+          return ForgotPassword3(otp: args["otp"]);
+        },
+
         '/forgot-password-4': (context) => ForgotPassword4(),
         '/newsletter': (context) => NewsletterScreen(),
         '/dashboard': (context) => DashboardScreen(),
         '/single-newsletter': (context) {
           final args =
-              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
           final newsletterId = args?['newsletterId'];
 
           return SingleNewsletterScreen(newsletterId: newsletterId);
@@ -159,7 +166,8 @@ class _MyAppState extends State<MyApp> {
         '/message': (context) => MessagesPage(),
         '/chat-screen': (context) {
           final args =
-              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
 
           if (args == null ||
               args['chatId'] == null ||
@@ -185,7 +193,8 @@ class _MyAppState extends State<MyApp> {
         '/survey': (_) => Surveyscreen(),
         '/survey-start': (context) {
           final args =
-              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
           final surveyId = args?['surveyId'];
 
           return SurveyStartScreen(surveyId: surveyId);

@@ -12,7 +12,8 @@ class WeightLossProgressChart extends StatefulWidget {
   const WeightLossProgressChart({Key? key}) : super(key: key);
 
   @override
-  State<WeightLossProgressChart> createState() => _WeightLossProgressChartState();
+  State<WeightLossProgressChart> createState() =>
+      _WeightLossProgressChartState();
 }
 
 class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
@@ -37,11 +38,13 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
       // Fetch data for the last 6 days (including today)
       final List<Map<String, dynamic>> dataList = [];
       final DateTime now = DateTime.now();
-      
+
       for (int i = 5; i >= 0; i--) {
         final DateTime date = now.subtract(Duration(days: i));
-        final Map<String, dynamic>? data = await _fetchNutritionDataForDate(date);
-        
+        final Map<String, dynamic>? data = await _fetchNutritionDataForDate(
+          date,
+        );
+
         if (data != null) {
           final double totalCalories = _calculateTotalCalories(data);
           dataList.add({
@@ -58,7 +61,7 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
             .map((data) => data['totalCalories'])
             .cast<double>()
             .reduce((a, b) => a > b ? a : b);
-        
+
         // Ensure maxCalories is at least 500 for better chart visibility
         _maxCalories = _maxCalories < 500 ? 500 : _maxCalories;
       }
@@ -76,7 +79,9 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
     }
   }
 
-  Future<Map<String, dynamic>?> _fetchNutritionDataForDate(DateTime date) async {
+  Future<Map<String, dynamic>?> _fetchNutritionDataForDate(
+    DateTime date,
+  ) async {
     try {
       final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
       if (backendUrl.isEmpty) {
@@ -110,12 +115,14 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
             'breakfast': [],
             'lunch': [],
             'dinner': [],
-            'snacks': []
+            'snacks': [],
           },
-          'date': formattedDate
+          'date': formattedDate,
         };
       } else {
-        throw Exception('Failed to fetch data. Status code: ${response.statusCode}');
+        throw Exception(
+          'Failed to fetch data. Status code: ${response.statusCode}',
+        );
       }
     } catch (e) {
       print('❌ Error fetching nutrition data for date: $e');
@@ -126,21 +133,22 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
   double _calculateTotalCalories(Map<String, dynamic> data) {
     try {
       double totalCalories = 0;
-      
+
       if (data.containsKey('meals') && data['meals'] is Map) {
         final Map<String, dynamic> meals = data['meals'];
-        
+
         meals.forEach((category, items) {
           if (items is List) {
             for (var item in items) {
-              if (item is Map<String, dynamic> && item.containsKey('calories')) {
+              if (item is Map<String, dynamic> &&
+                  item.containsKey('calories')) {
                 totalCalories += (item['calories'] as num).toDouble();
               }
             }
           }
         });
       }
-      
+
       return totalCalories;
     } catch (e) {
       print('❌ Error calculating total calories: $e');
@@ -171,15 +179,9 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
 
   List<double> _getYAxisValues() {
     if (_maxCalories <= 0) return [0, 250, 500, 750, 1000];
-    
+
     final double interval = _maxCalories / 4;
-    return [
-      0,
-      interval,
-      interval * 2,
-      interval * 3,
-      _maxCalories
-    ];
+    return [0, interval, interval * 2, interval * 3, _maxCalories];
   }
 
   @override
@@ -211,7 +213,7 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
             ],
           ),
           const SizedBox(height: 20),
-          
+
           if (_isLoading)
             SizedBox(
               height: 200,
@@ -266,8 +268,12 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
                   ),
                   titlesData: FlTitlesData(
                     show: true,
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -279,15 +285,12 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
                             fontWeight: FontWeight.w400,
                             fontSize: 12,
                           );
-                          
-                          if (value >= 0 && value < _nutritionData.length) {
-                            final dayLabel = _getDayLabels()[value.toInt()];
-                            return SideTitleWidget(
-                              meta: meta,
-                              child: Text(dayLabel, style: style),
-                            );
-                          }
-                          return const Text('', style: style);
+
+                          final dayLabel = _getDayLabels()[value.toInt()];
+                          return SideTitleWidget(
+                            axisSide: meta.axisSide, // ✅ required now
+                            child: Text(dayLabel, style: style),
+                          );
                         },
                       ),
                     ),
@@ -302,7 +305,7 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
                             fontSize: 12,
                           );
                           return SideTitleWidget(
-                            meta: meta,
+                            axisSide: meta.axisSide,
                             child: Text(value.toInt().toString(), style: style),
                           );
                         },
@@ -315,7 +318,10 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
                     border: Border.all(color: Colors.black87, width: 1),
                   ),
                   minX: 0,
-                  maxX: _nutritionData.length > 1 ? (_nutritionData.length - 1).toDouble() : 1,
+                  maxX:
+                      _nutritionData.length > 1
+                          ? (_nutritionData.length - 1).toDouble()
+                          : 1,
                   minY: 0,
                   maxY: _maxCalories,
                   lineBarsData: [
@@ -356,7 +362,8 @@ class _WeightLossProgressChartState extends State<WeightLossProgressChart> {
                         return touchedSpots.map((spot) {
                           final index = spot.x.toInt();
                           if (index >= 0 && index < _nutritionData.length) {
-                            final actualCalories = _nutritionData[index]['totalCalories'];
+                            final actualCalories =
+                                _nutritionData[index]['totalCalories'];
                             final date = _nutritionData[index]['date'];
                             return LineTooltipItem(
                               '${actualCalories.toStringAsFixed(0)} cal\n${DateFormat('MMM d').format(date)}',

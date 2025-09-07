@@ -163,6 +163,7 @@ class _FitnessSummaryState extends State<FitnessSummary> {
     "HEIGHT": "m",
     "BEATS_PER_MINUTE": "bpm",
     "PERCENT": "%",
+    "RESPIRATIONS_PER_MINUTE": "resp/min",
   };
 
   // --- Your function remains unchanged except mapping unit at the end ---
@@ -607,8 +608,14 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 },
                 {
                   'label': 'Distance',
-                  'value':
-                      "${getHealthValue('HealthDataType.DISTANCE_DELTA')['data']} ${getHealthValue('HealthDataType.DISTANCE_DELTA')['unit'] == 'METER' ? 'm' : getHealthValue('HealthDataType.DISTANCE_DELTA')['unit']}",
+                  'value': () {
+                    final raw =
+                        getHealthValue('HealthDataType.DISTANCE_DELTA')['data'];
+                    if (raw == '--') return '--';
+                    final meters = double.tryParse(raw.toString()) ?? 0;
+                    final miles = meters * 0.000621371;
+                    return "${miles.toStringAsFixed(2)} mi";
+                  }(),
                 },
                 {
                   'label': 'Active Calories',
@@ -660,7 +667,13 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 {
                   'label': 'Weight',
                   'value':
-                      "${getHealthValue('HealthDataType.WEIGHT')['data']} ${getHealthValue('HealthDataType.WEIGHT')['unit']}",
+                      "${(() {
+                        final raw = getHealthValue('HealthDataType.WEIGHT')['data'];
+                        if (raw == '--') return '--';
+                        final kg = double.tryParse(raw.toString()) ?? 0;
+                        final lbs = kg * 2.20462;
+                        return "${lbs.toStringAsFixed(1)} lb";
+                      })()}",
                 },
                 {
                   'label': 'BMI',

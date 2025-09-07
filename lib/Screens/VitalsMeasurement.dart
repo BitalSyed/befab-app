@@ -29,7 +29,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
   @override
   void initState() {
     super.initState();
-getData();
+    getData();
     // 👇 FIX: Only run after widget tree is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadHealthData();
@@ -194,10 +194,9 @@ getData();
         sumC(meals['dinner'] ?? []) +
         sumC(meals['snacks'] ?? []);
 
-    totalWaterLiters = (waterIntakeOz as num) / 1000;
+    totalWaterLiters = waterIntakeOz;
 
-    setState(() {
-    });
+    setState(() {});
 
     // print('🍳 Breakfast: $totalCaloriesBreakfast');
     // print('🥪 Lunch: $totalCaloriesLunch');
@@ -347,6 +346,7 @@ getData();
     "BEATS_PER_MINUTE": "bpm",
     "PERCENT": "%",
     "DEGREE_CELSIUS": "C",
+    "RESPIRATIONS_PER_MINUTE": "resp/min",
   };
 
   // --- Your function remains unchanged except mapping unit at the end ---
@@ -410,7 +410,7 @@ getData();
     return {"data": formatted, "unit": outUnit};
   }
 
- Map<String, dynamic> getHealthValue1(
+  Map<String, dynamic> getHealthValue1(
     String type, {
     int decimalsIfDouble = 2,
     bool convertMetersToKm = false,
@@ -494,28 +494,12 @@ getData();
   List<HeartRateData> _getHeartRateChartData() {
     if (healthData == null ||
         healthData!['HealthDataType.HEART_RATE'] == null) {
-      return [
-        HeartRateData(time: '6AM', value: 68),
-        HeartRateData(time: '9AM', value: 75),
-        HeartRateData(time: '12PM', value: 82),
-        HeartRateData(time: '3PM', value: 78),
-        HeartRateData(time: '6PM', value: 85),
-        HeartRateData(time: '9PM', value: 72),
-        HeartRateData(time: '10PM', value: 70),
-      ];
+      return [HeartRateData(time: '6AM', value: 0)];
     }
 
     final heartRateData = healthData!['HealthDataType.HEART_RATE'] as List;
     if (heartRateData.isEmpty) {
-      return [
-        HeartRateData(time: '6AM', value: 68),
-        HeartRateData(time: '9AM', value: 75),
-        HeartRateData(time: '12PM', value: 82),
-        HeartRateData(time: '3PM', value: 78),
-        HeartRateData(time: '6PM', value: 85),
-        HeartRateData(time: '9PM', value: 72),
-        HeartRateData(time: '10PM', value: 70),
-      ];
+      return [HeartRateData(time: '6AM', value: 0)];
     }
 
     // Get the latest 7 readings for the chart
@@ -557,15 +541,7 @@ getData();
     if (healthData == null ||
         healthData!['HealthDataType.BLOOD_PRESSURE_SYSTOLIC'] == null ||
         healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] == null) {
-      return [
-        BloodPressureData(day: 'Mon', systolic: 120, diastolic: 78),
-        BloodPressureData(day: 'Tue', systolic: 118, diastolic: 76),
-        BloodPressureData(day: 'Wed', systolic: 115, diastolic: 75),
-        BloodPressureData(day: 'Thu', systolic: 119, diastolic: 77),
-        BloodPressureData(day: 'Fri', systolic: 122, diastolic: 79),
-        BloodPressureData(day: 'Sat', systolic: 117, diastolic: 74),
-        BloodPressureData(day: 'Sun', systolic: 118, diastolic: 75),
-      ];
+      return [BloodPressureData(day: 'Mon', systolic: 0, diastolic: 0)];
     }
 
     final systolicData =
@@ -574,15 +550,7 @@ getData();
         healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] as List;
 
     if (systolicData.isEmpty || diastolicData.isEmpty) {
-      return [
-        BloodPressureData(day: 'Mon', systolic: 120, diastolic: 78),
-        BloodPressureData(day: 'Tue', systolic: 118, diastolic: 76),
-        BloodPressureData(day: 'Wed', systolic: 115, diastolic: 75),
-        BloodPressureData(day: 'Thu', systolic: 119, diastolic: 77),
-        BloodPressureData(day: 'Fri', systolic: 122, diastolic: 79),
-        BloodPressureData(day: 'Sat', systolic: 117, diastolic: 74),
-        BloodPressureData(day: 'Sun', systolic: 118, diastolic: 75),
-      ];
+      return [BloodPressureData(day: 'Mon', systolic: 0, diastolic: 0)];
     }
 
     // Get the latest 7 readings for the chart
@@ -627,24 +595,24 @@ getData();
     if (healthData == null ||
         healthData!['HealthDataType.HEART_RATE'] == null) {
       return {
-        'current': 72,
-        'min': 58,
-        'avg': 72,
-        'max': 110,
-        'resting': 62,
-        'variability': 58,
+        'current': 0,
+        'min': 0,
+        'avg': 0,
+        'max': 0,
+        'resting': 0,
+        'variability': 0,
       };
     }
 
     final heartRateData = healthData!['HealthDataType.HEART_RATE'] as List;
     if (heartRateData.isEmpty) {
       return {
-        'current': 72,
-        'min': 58,
-        'avg': 72,
-        'max': 110,
-        'resting': 62,
-        'variability': 58,
+        'current': 0,
+        'min': 0,
+        'avg': 0,
+        'max': 0,
+        'resting': 0,
+        'variability': 0,
       };
     }
 
@@ -697,11 +665,11 @@ getData();
         healthData!['HealthDataType.BLOOD_PRESSURE_SYSTOLIC'] == null ||
         healthData!['HealthDataType.BLOOD_PRESSURE_DIASTOLIC'] == null) {
       return {
-        'systolic': 118,
-        'diastolic': 75,
-        'lastWeekAverage': '120/78',
-        'map': 89,
-        'pulse': 72,
+        'systolic': 0,
+        'diastolic': 0,
+        'lastWeekAverage': '0/0',
+        'map': 0,
+        'pulse': 0,
       };
     }
 
@@ -712,11 +680,11 @@ getData();
 
     if (systolicData.isEmpty || diastolicData.isEmpty) {
       return {
-        'systolic': 118,
-        'diastolic': 75,
-        'lastWeekAverage': '120/78',
-        'map': 89,
-        'pulse': 72,
+        'systolic': 0,
+        'diastolic': 0,
+        'lastWeekAverage': '0/0',
+        'map': 0,
+        'pulse': 0,
       };
     }
 
@@ -886,17 +854,17 @@ getData();
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    "History",
-                    style: GoogleFonts.inter(
-                      color: Color(0xFF862633),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
+                // Padding(
+                //   padding: const EdgeInsets.all(16.0),
+                //   child: Text(
+                //     "History",
+                //     style: GoogleFonts.inter(
+                //       color: Color(0xFF862633),
+                //       fontSize: 16,
+                //       fontWeight: FontWeight.w400,
+                //     ),
+                //   ),
+                // ),
               ],
             ),
             Padding(
@@ -928,14 +896,13 @@ getData();
                 unit: 'mmHg',
                 status: 'Normal',
                 weeklyData: bloodPressureChartData,
-                lastWeekAverage: (
-  () {
-    final val = bloodPressureStats['lastWeekAverage'];
-    if (val is num) return val.round().toString();
-    if (val is String) return (double.tryParse(val)?.round() ?? 0).toString();
-    return '0';
-  }()
-),
+                lastWeekAverage: (() {
+                  final val = bloodPressureStats['lastWeekAverage'];
+                  if (val is num) return val.round().toString();
+                  if (val is String)
+                    return (double.tryParse(val)?.round() ?? 0).toString();
+                  return '0';
+                }()),
                 lastReading: '',
                 mapValue: (bloodPressureStats['map'] as num?)?.round() ?? 0,
                 pulseValue: (bloodPressureStats['pulse'] as num?)?.round() ?? 0,
@@ -1035,14 +1002,17 @@ getData();
                       imageColor: Color(0xFF9333EA),
                       imageBackgroundColor: Color.fromRGBO(147, 51, 234, 0.2),
                       title: "Temperature",
-                      value:
-                          getHealthValue(
-                            'HealthDataType.BODY_TEMPERATURE',
-                          )['data'],
-                      unit:
-                          getHealthValue(
-                            'HealthDataType.BODY_TEMPERATURE',
-                          )['unit'],
+                      value: () {
+                        final raw =
+                            getHealthValue(
+                              'HealthDataType.BODY_TEMPERATURE',
+                            )['data'];
+                        if (raw == '--') return '--';
+                        final celsius = double.tryParse(raw.toString()) ?? 0;
+                        final fahrenheit = (celsius * 9 / 5) + 32;
+                        return fahrenheit.toStringAsFixed(1);
+                      }(),
+                      unit: "°F",
                       goalLabel: "",
                       progress: 12 / 15,
                     ),
@@ -1083,15 +1053,29 @@ getData();
                 primaryMetrics: [
                   BodyMetric(
                     label: 'Weight',
-                    value: getHealthValue('HealthDataType.WEIGHT')['data'],
-                    unit: getHealthValue('HealthDataType.WEIGHT')['unit'],
+                    value: () {
+                      final raw =
+                          getHealthValue('HealthDataType.WEIGHT')['data'];
+                      if (raw == '--') return '--';
+                      final kg = double.tryParse(raw.toString()) ?? 0;
+                      final lbs = kg * 2.20462;
+                      return lbs.toStringAsFixed(1); // e.g. 154.3
+                    }(),
+                    unit: "lb",
                     changeText: '',
                     changeColor: const Color(0xFF4CAF50),
                   ),
                   BodyMetric(
                     label: 'Height',
-                    value: getHealthValue('HealthDataType.HEIGHT')['data'],
-                    unit: getHealthValue('HealthDataType.HEIGHT')['unit'],
+                    value: () {
+                      final raw =
+                          getHealthValue('HealthDataType.HEIGHT')['data'];
+                      if (raw == '--') return '--';
+                      final meters = double.tryParse(raw.toString()) ?? 0;
+                      final feet = meters * 3.28084;
+                      return feet.toStringAsFixed(1); // e.g. 5.9
+                    }(),
+                    unit: "ft",
                     additionalInfo: 'Last Update 3 mon ago',
                     additionalInfoColor: Colors.grey[600],
                   ),
@@ -1139,14 +1123,14 @@ getData();
                                   )['data'].toString(),
                                 ) ??
                                 0.0) *
-                            0.12)
+                            2.20462)
                         .toStringAsFixed(1),
-                    unit: getHealthValue('HealthDataType.WEIGHT')['unit'],
+                    unit: "lb",
                   ),
                   BodyMetric(
                     label: 'Water',
                     value: (totalWaterLiters).toStringAsFixed(1),
-                    unit: "L",
+                    unit: "ml",
                   ),
                   BodyMetric(
                     label: 'Heart Rate',

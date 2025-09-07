@@ -1,5 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-package="com.example.befab"
 >
 <!-- package="com.befab.fitness" -->
 
@@ -30,9 +29,14 @@ package="com.example.befab"
   <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
   <uses-permission android:name="android.permission.health.READ_EXERCISE_TIME" />
   <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
-
   <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
-
+  <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
+  <uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE" />
+  <uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" />
+  <uses-permission android:name="android.permission.health.READ_HYDRATION" />
+  <uses-permission android:name="android.permission.health.READ_BODY_WATER_MASS" />
+  <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+  <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
   <!-- ✅ Android 13+ extras -->
   <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

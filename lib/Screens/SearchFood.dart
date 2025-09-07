@@ -22,6 +22,136 @@ class SearchFood extends StatefulWidget {
 }
 
 class _SearchFoodState extends State<SearchFood> {
+  void _showPortionDialog(Map<String, dynamic> product) {
+    final TextEditingController portionController = TextEditingController();
+
+    // Try to auto-detect serving size from API
+    String detectedUnit = "g";
+    double detectedAmount = 100; // default: per 100g
+
+    if (product["serving_size"] != null) {
+      final serving = product["serving_size"].toString().toLowerCase();
+
+      if (serving.contains("tsp")) {
+        detectedUnit = "tsp";
+        detectedAmount = 5;
+      } else if (serving.contains("tbsp")) {
+        detectedUnit = "tbsp";
+        detectedAmount = 15;
+      } else if (serving.contains("cup")) {
+        detectedUnit = "cup";
+        detectedAmount = 240;
+      } else if (serving.contains("ml")) {
+        detectedUnit = "ml";
+        detectedAmount =
+            double.tryParse(
+              RegExp(r"(\d+)").firstMatch(serving)?.group(1) ?? "240",
+            ) ??
+            240;
+      } else if (serving.contains("g")) {
+        detectedUnit = "g";
+        detectedAmount =
+            double.tryParse(
+              RegExp(r"(\d+)").firstMatch(serving)?.group(1) ?? "100",
+            ) ??
+            100;
+      }
+    }
+
+    portionController.text = detectedAmount.toString();
+
+    final units = ["g", "ml", "tsp", "tbsp", "cup", "slice", "tub", "drink"];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        String selectedUnit = detectedUnit;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text("Portion Size for ${product['name']}"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: portionController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: "Enter amount",
+                      hintText: "e.g. 2",
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButton<String>(
+                    value: selectedUnit,
+                    isExpanded: true,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          selectedUnit = value;
+                        });
+                      }
+                    },
+                    items:
+                        units
+                            .map(
+                              (u) => DropdownMenuItem(value: u, child: Text(u)),
+                            )
+                            .toList(),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final amount =
+                        double.tryParse(portionController.text) ?? 1.0;
+
+                    final per100 = (product["calories"] ?? 0).toDouble();
+
+                    // 🔥 Apply rough conversions for tsp/tbsp/cup
+                    double grams = amount;
+                    switch (selectedUnit) {
+                      case "tsp":
+                        grams = amount * 5;
+                        break;
+                      case "tbsp":
+                        grams = amount * 15;
+                        break;
+                      case "cup":
+                        grams = amount * 240;
+                        break;
+                      case "ml":
+                        grams = amount; // assume 1ml ≈ 1g for water-based
+                        break;
+                      default:
+                        grams = amount;
+                    }
+
+                    double calories = (per100 / 100.0) * grams;
+
+                    Navigator.pop(context);
+
+                    _submitMealData1(
+                      "${product['name']} ($amount $selectedUnit)",
+                      calories,
+                    );
+                  },
+                  child: const Text("Add"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   final FlutterSecureStorage secureStorage = FlutterSecureStorage();
   Map<String, dynamic>? nutritionData;
   List<dynamic> foods = [];
@@ -52,7 +182,9 @@ class _SearchFoodState extends State<SearchFood> {
       }
 
       // Get current date in YYYY-MM-DD format
-      final String currentDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final String currentDate = DateFormat(
+        'yyyy-MM-dd',
+      ).format(DateTime.now());
 
       // Build full URL
       final String url = '$backendUrl/app/nutrition/$currentDate';
@@ -67,7 +199,7 @@ class _SearchFoodState extends State<SearchFood> {
           'Content-Type': 'application/json',
         },
       );
-      
+
       final response1 = await http.get(
         Uri.parse(url1),
         headers: {
@@ -110,14 +242,18 @@ class _SearchFoodState extends State<SearchFood> {
     }
   }
 
-  Future<void> _submitMealData1(String foodName, num calories, {int quantity = 1}) async {
+  Future<void> _submitMealData1(
+    String foodName,
+    num calories, {
+    int quantity = 1,
+  }) async {
     try {
       // Get token from secure storage
       final token = await secureStorage.read(key: 'token');
       if (token == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Authentication required'))
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Authentication required')));
         return;
       }
 
@@ -127,17 +263,15 @@ class _SearchFoodState extends State<SearchFood> {
       // Prepare the request body
       final Map<String, dynamic> requestBody = {
         "bucket": "other",
-        "item": {
-          "name": foodName, 
-          "calories": calories,
-          "quantity": quantity
-        },
+        "item": {"name": foodName, "calories": calories, "quantity": quantity},
       };
 
       // Make the API call
       await dotenv.load();
       final response = await http.post(
-        Uri.parse('${dotenv.env['BACKEND_URL']}/app/nutrition/$currentDate/meal'),
+        Uri.parse(
+          '${dotenv.env['BACKEND_URL']}/app/nutrition/$currentDate/meal',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -147,11 +281,11 @@ class _SearchFoodState extends State<SearchFood> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         // Success - refresh data
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Meal added successfully!'))
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Meal added successfully!')));
         getData(); // Refresh the data
-        
+
         // Clear search and hide results
         setState(() {
           _searchController.clear();
@@ -164,28 +298,31 @@ class _SearchFoodState extends State<SearchFood> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'))
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   // Get recent foods from all meal categories
   List<dynamic> getRecentFoods() {
     if (nutritionData == null || nutritionData!['meals'] == null) return [];
-    
+
     List<dynamic> allFoods = [];
     final meals = nutritionData!['meals'] as Map<String, dynamic>;
-    
+
     // Combine foods from all meal categories
     meals.forEach((category, items) {
       if (items is List) {
         allFoods.addAll(items);
       }
     });
-    
+
     // Return the most recent foods (limit to 4 for display)
-   return allFoods.reversed.toList().sublist(0, allFoods.length > 4 ? 4 : allFoods.length);
+    return allFoods.reversed.toList().sublist(
+      0,
+      allFoods.length > 4 ? 4 : allFoods.length,
+    );
   }
 
   @override
@@ -222,7 +359,7 @@ class _SearchFoodState extends State<SearchFood> {
         iconColor: Color(0xFF862633),
       ),
     ];
-    
+
     final recentFoods = getRecentFoods();
 
     return Scaffold(
@@ -290,10 +427,13 @@ class _SearchFoodState extends State<SearchFood> {
                           if (query.isEmpty) {
                             filteredFoods = [];
                           } else {
-                            filteredFoods = foods.where((food) {
-                              final name = food['name']?.toString().toLowerCase() ?? '';
-                              return name.contains(query.toLowerCase());
-                            }).toList();
+                            filteredFoods =
+                                foods.where((food) {
+                                  final name =
+                                      food['name']?.toString().toLowerCase() ??
+                                      '';
+                                  return name.contains(query.toLowerCase());
+                                }).toList();
                           }
                         });
                       },
@@ -342,7 +482,7 @@ class _SearchFoodState extends State<SearchFood> {
                 ],
               ),
             ),
-            
+
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: SizedBox(
@@ -365,11 +505,10 @@ class _SearchFoodState extends State<SearchFood> {
                         builder: (_) => const BarcodeScannerScreen(),
                       ),
                     );
-                    if (result != null && result['name'] != null) {
-                      await _submitMealData1(
-                        result['name'],
-                        result['calories'] ?? 0,
-                      );
+                    if (result != null && result['calories'] != null) {
+                      debugPrint("✅ Scanned Barcode: $result");
+
+                      _showPortionDialog(result);
                     }
                   },
                   child: Padding(
@@ -392,7 +531,7 @@ class _SearchFoodState extends State<SearchFood> {
                 ),
               ),
             ),
-            
+
             // Padding(
             //   padding: const EdgeInsets.all(12.0),
             //   child: SizedBox(
@@ -434,7 +573,7 @@ class _SearchFoodState extends State<SearchFood> {
             //     ),
             //   ),
             // ),
-            
+
             // Recent Foods Section
             if (recentFoods.isNotEmpty)
               Column(
@@ -453,26 +592,26 @@ class _SearchFoodState extends State<SearchFood> {
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          "view all",
-                          style: GoogleFonts.lexend(
-                            color: Color(0xFF862633),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ),
+                      // Padding(
+                      //   padding: const EdgeInsets.all(8.0),
+                      //   child: Text(
+                      //     "view all",
+                      //     style: GoogleFonts.lexend(
+                      //       color: Color(0xFF862633),
+                      //       fontSize: 16,
+                      //       fontWeight: FontWeight.w400,
+                      //     ),
+                      //   ),
+                      // ),
                     ],
                   ),
-                  
+
                   // Display recent foods
                   ...recentFoods.map((food) {
                     final name = food['name'] ?? 'Unknown Food';
                     final calories = food['calories'] ?? 0;
                     final quantity = food['quantity'] ?? 1;
-                    
+
                     return HeadingWithImageRow(
                       heading: name,
                       subtitle: "$quantity serving(s), $calories cal",
@@ -490,7 +629,7 @@ class _SearchFoodState extends State<SearchFood> {
                   }).toList(),
                 ],
               ),
-            
+
             // My Favorites Section
             // Row(
             //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -519,7 +658,7 @@ class _SearchFoodState extends State<SearchFood> {
             //     ),
             //   ],
             // ),
-            
+
             // FavouritesGridWidget(
             //   categories: sampleCategories,
             //   onViewAllTap: () {
@@ -529,12 +668,11 @@ class _SearchFoodState extends State<SearchFood> {
             //     print('Category tapped: ${category.name}');
             //   },
             // ),
-            
             SizedBox(height: 24),
           ],
         ),
       ),
-      
+
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(right: 11), // adjust as needed
         child: SizedBox(
@@ -555,7 +693,6 @@ class _SearchFoodState extends State<SearchFood> {
     );
   }
 }
-
 
 Widget _buildBarcode() {
   return Container(

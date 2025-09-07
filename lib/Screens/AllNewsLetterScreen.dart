@@ -60,7 +60,7 @@ class _AllNewslettersScreenState extends State<AllNewslettersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("All Newsletter"), centerTitle: true),
+      appBar: AppBar(title: const Text("Newsletters"), centerTitle: true),
       body:
           loading
               ? const Center(child: CircularProgressIndicator())

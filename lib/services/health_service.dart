@@ -24,6 +24,7 @@ class HealthService {
 
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.SLEEP_AWAKE,
+    // HealthDataType.SLEEP_IN_BED,
     HealthDataType.BODY_FAT_PERCENTAGE,
     HealthDataType.BODY_MASS_INDEX,
     HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
@@ -31,6 +32,7 @@ class HealthService {
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.RESTING_HEART_RATE,
     HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    // HealthDataType.EXERCISE_TIME,
     HealthDataType.TOTAL_CALORIES_BURNED,
     HealthDataType.WORKOUT,
     HealthDataType.SLEEP_DEEP,
@@ -102,51 +104,6 @@ class HealthService {
                     Platform.isAndroid
                         ? "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
                         : "https://apps.apple.com/us/app/health/id1110145103",
-                  );
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: const Text("Install"),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Future<bool> isHealthServiceAvailable() async {
-    if (Platform.isAndroid) {
-      // Try to launch Google Fit
-      final fitScheme = Uri.parse("googlefit://");
-      return await canLaunchUrl(fitScheme);
-    } else if (Platform.isIOS) {
-      // Apple Health is always present, but needs permissions
-      return true;
-    }
-    return false;
-  }
-
-  void suggestInstallHealthService(BuildContext context) {
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Health Service Required"),
-            content: const Text(
-              "Some features may requires Google Fit (Android) or Apple Health (iOS).",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  final url = Uri.parse(
-                    Platform.isAndroid
-                        ? "https://play.google.com/store/apps/details?id=com.google.android.apps.fitness"
-                        : "https://apps.apple.com/us/app/apple-health/id1110145103",
                   );
                   if (await canLaunchUrl(url)) {
                     await launchUrl(url, mode: LaunchMode.externalApplication);
