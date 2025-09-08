@@ -263,7 +263,7 @@ class _SearchFoodState extends State<SearchFood> {
       // Prepare the request body
       final Map<String, dynamic> requestBody = {
         "bucket": "other",
-        "item": {"name": foodName, "calories": calories, "quantity": quantity},
+        "item": {"name": foodName, "calories": double.parse(calories.toStringAsFixed(2)), "quantity": quantity},
       };
 
       // Make the API call
@@ -319,10 +319,7 @@ class _SearchFoodState extends State<SearchFood> {
     });
 
     // Return the most recent foods (limit to 4 for display)
-    return allFoods.reversed.toList().sublist(
-      0,
-      allFoods.length > 4 ? 4 : allFoods.length,
-    );
+    return allFoods.reversed.toList();
   }
 
   @override

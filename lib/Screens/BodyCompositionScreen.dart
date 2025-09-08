@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // Ensure this import is at the top
 import 'package:flutter/material.dart';
+import 'package:health/health.dart';
+import 'package:intl/intl.dart';
 
 class BodyCompositionScreen extends StatefulWidget {
   const BodyCompositionScreen({Key? key}) : super(key: key);
@@ -190,6 +192,101 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
     return {"data": formatted, "unit": outUnit};
   }
 
+  Map<String, dynamic> getHealthValue1(
+    String type, {
+    int decimalsIfDouble = 2,
+    bool convertMetersToKm = false,
+  }) {
+    if (healthData == null) return {"data": "--", "unit": ""};
+
+    final raw = healthData![type];
+    if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
+
+    // Get today's date in YYYY-MM-DD format
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // --- pick the most common unit present in the list ---
+    String _resolveUnit(List list) {
+      final counts = <String, int>{};
+      for (final e in list) {
+        if (e is Map) {
+          String? u;
+          if (e['unit'] is String) {
+            u = e['unit'] as String;
+          }
+          if (u != null && u.isNotEmpty) {
+            counts[u] = (counts[u] ?? 0) + 1;
+          }
+        }
+      }
+      if (counts.isEmpty) return '';
+      return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    }
+
+    final unitFromData = _resolveUnit(raw);
+
+    // --- collect all valid entries with their date ---
+    List<Map<String, dynamic>> validEntries = [];
+    for (final e in raw) {
+      if (e is! Map) continue;
+
+      final dateFrom = e['dateFrom'];
+      final value = e['value'];
+
+      num? numericValue;
+      if (value is NumericHealthValue) {
+        numericValue = value.numericValue;
+      } else if (value is Map) {
+        numericValue = value['numericValue'] as num?;
+      }
+
+      if (dateFrom is String && numericValue != null) {
+        validEntries.add({"date": dateFrom, "value": numericValue});
+      }
+    }
+
+    if (validEntries.isEmpty) return {"data": "--", "unit": unitFromData};
+
+    // --- Prefer today, else pick most recent entry ---
+    List<Map<String, dynamic>> todayEntries =
+        validEntries.where((e) => e["date"].contains(today)).toList();
+
+    List<Map<String, dynamic>> chosenEntries;
+    if (todayEntries.isNotEmpty) {
+      chosenEntries = todayEntries;
+    } else {
+      // sort by date descending to get last logged
+      validEntries.sort(
+        (a, b) => (b["date"] as String).compareTo(a["date"] as String),
+      );
+      final lastDate = validEntries.first["date"];
+      chosenEntries = validEntries.where((e) => e["date"] == lastDate).toList();
+    }
+
+    // --- sum values for chosen date ---
+    num total = 0;
+    for (final e in chosenEntries) {
+      total += e["value"] as num;
+    }
+
+    // optional unit conversion
+    String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
+    if (convertMetersToKm && unitFromData == "METER") {
+      total = total / 1000;
+      outUnit = "km";
+    }
+
+    // format nicely
+    String formatted;
+    if (total % 1 == 0) {
+      formatted = total.toInt().toString();
+    } else {
+      formatted = total.toStringAsFixed(decimalsIfDouble);
+    }
+
+    return {"data": formatted, "unit": outUnit};
+  }
+
   String getAverageBodyFatCategory(double bodyFat) {
     if (bodyFat < 18) {
       return "Underfat";
@@ -223,7 +320,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
         label: 'Lean Body Mass (76%)',
         percentage:
             double.tryParse(
-              getHealthValue(
+              getHealthValue1(
                     'HealthDataType.LEAN_BODY_MASS',
                   )?['data']?.toString() ??
                   '0',
@@ -235,7 +332,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
         label: 'Body Fat',
         percentage:
             double.tryParse(
-              getHealthValue(
+              getHealthValue1(
                     'HealthDataType.BODY_FAT_PERCENTAGE',
                   )?['data']?.toString() ??
                   '0',
@@ -247,7 +344,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
         label: 'BMI',
         percentage:
             double.tryParse(
-              getHealthValue(
+              getHealthValue1(
                     'HealthDataType.BODY_MASS_INDEX',
                   )?['data']?.toString() ??
                   '0',
@@ -259,7 +356,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
         label: 'Weight',
         percentage:
             double.tryParse(
-              getHealthValue(
+              getHealthValue1(
                     'HealthDataType.BODY_MASS_INDEX',
                   )?['data']?.toString() ??
                   '0',
@@ -272,7 +369,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       HealthStat(
         title: "Weight",
         value: () {
-          final raw = getHealthValue('HealthDataType.WEIGHT')['data'];
+          final raw = getHealthValue1('HealthDataType.WEIGHT')['data'];
           if (raw == '--') return '--';
           final kg = double.tryParse(raw.toString()) ?? 0;
           final lbs = kg * 2.20462;
@@ -286,7 +383,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       HealthStat(
         title: "Height",
         value: () {
-          final raw = getHealthValue('HealthDataType.HEIGHT')['data'];
+          final raw = getHealthValue1('HealthDataType.HEIGHT')['data'];
           if (raw == '--') return '--';
           final meters = double.tryParse(raw.toString()) ?? 0;
           final feet = meters * 3.28084;
@@ -297,7 +394,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       ),
       HealthStat(
         title: "BMI",
-        value: getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'],
+        value: getHealthValue1('HealthDataType.BODY_MASS_INDEX')['data'],
         unit: "",
         lastUpdated: "",
         secondaryLabel: "",
@@ -305,7 +402,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       ),
       HealthStat(
         title: "Body Fat Percent",
-        value: getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data'],
+        value: getHealthValue1('HealthDataType.BODY_FAT_PERCENTAGE')['data'],
         unit: "%",
         lastUpdated: "",
         secondaryLabel: "",
@@ -313,8 +410,8 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
       ),
       HealthStat(
         title: "Lean Body Mass",
-        value: getHealthValue('HealthDataType.LEAN_BODY_MASS')['data'],
-        unit: getHealthValue('HealthDataType.LEAN_BODY_MASS')['unit'],
+        value: getHealthValue1('HealthDataType.LEAN_BODY_MASS')['data'],
+        unit: getHealthValue1('HealthDataType.LEAN_BODY_MASS')['unit'],
         lastUpdated: "",
       ),
     ];
@@ -355,7 +452,7 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                   Text(
                     () {
                       final raw =
-                          getHealthValue('HealthDataType.WEIGHT')['data'];
+                          getHealthValue1('HealthDataType.WEIGHT')['data'];
                       if (raw == '--') return '-- lb';
                       final kg = double.tryParse(raw.toString()) ?? 0;
                       final lbs = kg * 2.20462;
@@ -393,22 +490,22 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                       imageBackgroundColor: Color.fromRGBO(255, 125, 14, 0.2),
                       title: "BMI",
                       value:
-                          getHealthValue(
+                          getHealthValue1(
                             'HealthDataType.BODY_MASS_INDEX',
                           )['data'],
                       unit: "",
                       goalLabel:
-                          "${getBmiCategory(double.tryParse(getHealthValue('HealthDataType.BODY_MASS_INDEX')['data'].toString()) ?? 0.0)}",
+                          "${getBmiCategory(double.tryParse(getHealthValue1('HealthDataType.BODY_MASS_INDEX')['data'].toString()) ?? 0.0)}",
                       progress:
                           (double.tryParse(
-                                getHealthValue(
+                                getHealthValue1(
                                   'HealthDataType.BODY_MASS_INDEX',
                                 )['data'].toString(),
                               ) ??
                               0.0) /
                           25,
                       startLabel:
-                          getHealthValue(
+                          getHealthValue1(
                             'HealthDataType.BODY_MASS_INDEX',
                           )['data'],
                       endLabel: '25',
@@ -421,20 +518,20 @@ class _BodyCompositionScreenState extends State<BodyCompositionScreen> {
                       imageBackgroundColor: Color.fromRGBO(37, 99, 235, 0.2),
                       title: "Body Fat",
                       value:
-                          "${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%",
+                          "${getHealthValue1('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%",
                       unit: "",
                       goalLabel:
-                          "${getAverageBodyFatCategory(double.tryParse(getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data'].toString()) ?? 0.0)}",
+                          "${getAverageBodyFatCategory(double.tryParse(getHealthValue1('HealthDataType.BODY_FAT_PERCENTAGE')['data'].toString()) ?? 0.0)}",
                       progress:
                           (double.tryParse(
-                                getHealthValue(
+                                getHealthValue1(
                                   'HealthDataType.BODY_FAT_PERCENTAGE',
                                 )['data'].toString(),
                               ) ??
                               0.0) /
                           31,
                       startLabel:
-                          '${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%',
+                          '${getHealthValue1('HealthDataType.BODY_FAT_PERCENTAGE')['data']}%',
                       endLabel: '31%',
                     ),
                   ),

@@ -194,7 +194,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
         sumC(meals['dinner'] ?? []) +
         sumC(meals['snacks'] ?? []);
 
-    totalWaterLiters = waterIntakeOz;
+    totalWaterLiters = waterIntakeOz.toDouble();
 
     setState(() {});
 
@@ -443,33 +443,48 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
 
     final unitFromData = _resolveUnit(raw);
 
-    // --- sum numeric values for TODAY only ---
-    num total = 0;
-
+    // --- collect all valid entries with their date ---
+    List<Map<String, dynamic>> validEntries = [];
     for (final e in raw) {
       if (e is! Map) continue;
 
-      // Check if the entry is from today
       final dateFrom = e['dateFrom'];
-      if (dateFrom is! String || !dateFrom.contains(today)) {
-        continue; // Skip entries not from today
-      }
-
       final value = e['value'];
 
       num? numericValue;
-
       if (value is NumericHealthValue) {
-        // ✅ plugin object case
         numericValue = value.numericValue;
       } else if (value is Map) {
-        // ✅ in case the plugin/data source returns it as a Map
         numericValue = value['numericValue'] as num?;
       }
 
-      if (numericValue != null) {
-        total += numericValue;
+      if (dateFrom is String && numericValue != null) {
+        validEntries.add({"date": dateFrom, "value": numericValue});
       }
+    }
+
+    if (validEntries.isEmpty) return {"data": "--", "unit": unitFromData};
+
+    // --- Prefer today, else pick most recent entry ---
+    List<Map<String, dynamic>> todayEntries =
+        validEntries.where((e) => e["date"].contains(today)).toList();
+
+    List<Map<String, dynamic>> chosenEntries;
+    if (todayEntries.isNotEmpty) {
+      chosenEntries = todayEntries;
+    } else {
+      // sort by date descending to get last logged
+      validEntries.sort(
+        (a, b) => (b["date"] as String).compareTo(a["date"] as String),
+      );
+      final lastDate = validEntries.first["date"];
+      chosenEntries = validEntries.where((e) => e["date"] == lastDate).toList();
+    }
+
+    // --- sum values for chosen date ---
+    num total = 0;
+    for (final e in chosenEntries) {
+      total += e["value"] as num;
     }
 
     // optional unit conversion
@@ -1055,7 +1070,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                     label: 'Weight',
                     value: () {
                       final raw =
-                          getHealthValue('HealthDataType.WEIGHT')['data'];
+                          getHealthValue1('HealthDataType.WEIGHT')['data'];
                       if (raw == '--') return '--';
                       final kg = double.tryParse(raw.toString()) ?? 0;
                       final lbs = kg * 2.20462;
@@ -1069,7 +1084,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                     label: 'Height',
                     value: () {
                       final raw =
-                          getHealthValue('HealthDataType.HEIGHT')['data'];
+                          getHealthValue1('HealthDataType.HEIGHT')['data'];
                       if (raw == '--') return '--';
                       final meters = double.tryParse(raw.toString()) ?? 0;
                       final feet = meters * 3.28084;
@@ -1118,7 +1133,7 @@ class _VitalsMeasurementState extends State<VitalsMeasurement> {
                   BodyMetric(
                     label: 'Bone Mass',
                     value: ((double.tryParse(
-                                  getHealthValue(
+                                  getHealthValue1(
                                     'HealthDataType.WEIGHT',
                                   )['data'].toString(),
                                 ) ??

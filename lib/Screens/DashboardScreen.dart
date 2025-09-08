@@ -176,7 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     "STRESS_LEVEL": "",
     "WATER": "L",
     "CAFFEINE": "mg",
-    "ALCOHOL_CONSUMED": "g",
+    "ALCOHOL_CONSUMPTION": "g",
     "TOBACCO_SMOKED": "cig",
     "BODY_MASS": "kg",
     "HEIGHT": "m",
@@ -469,6 +469,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // Function to mark notifications as read
+  Future<void> markNotificationsAsRead() async {
+    try {
+      // Get backend URL
+      final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
+      if (backendUrl.isEmpty) {
+        print("⚠️ BACKEND_URL is empty in .env");
+        return;
+      }
+
+      // Get token from secure storage
+      final token = await storage.read(key: 'token');
+      if (token == null) {
+        print("⚠️ No auth token found in storage");
+        return;
+      }
+
+      // Build full URL
+      final String url = '$backendUrl/app/notifications/read';
+      print("Marking notifications as read at: $url");
+
+      // Make POST request with Authorization header
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ Notifications marked as read successfully");
+        // Reload notifications to update the UI
+        await _loadNotifications();
+      } else {
+        print(
+          '⚠️ Failed to mark notifications as read. Status code: ${response.statusCode}',
+        );
+        print('Response body: ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error marking notifications as read: $e');
+    }
+  }
+
   // Usage example:
   List<dynamic> goals = []; // Variable to store goals
 
@@ -607,6 +652,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final RenderBox overlay =
                     Overlay.of(context).context.findRenderObject() as RenderBox;
 
+                // Mark notifications as read when opening the popup
+                markNotificationsAsRead();
+
                 showMenu(
                   context: context,
                   position: RelativeRect.fromLTRB(
@@ -641,9 +689,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 title: Text(n["content"] ?? "No content"),
                                 subtitle: Text(
                                   n["createdAt"] != null
-                                      ? DateTime.parse(
-                                        n["createdAt"],
-                                      ).toLocal().toString()
+                                      ? DateFormat('MM/dd/yyyy').format(
+                                        DateTime.parse(
+                                          n["createdAt"],
+                                        ).toLocal(),
+                                      )
                                       : "Unknown time",
                                   style: const TextStyle(fontSize: 12),
                                 ),
@@ -668,7 +718,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: 24,
                     color: const Color(0xFF862633),
                   ),
-                  if (notifications != null && notifications.isNotEmpty)
+                  if (notifications != null &&
+                      notifications.isNotEmpty &&
+                      notifications.any((n) => n["read"] == false))
                     Positioned(
                       top: 2,
                       right: 2,

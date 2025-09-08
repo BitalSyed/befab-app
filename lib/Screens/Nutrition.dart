@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 // Updated CustomTabBar without navigation routes
 class CustomTabBar extends StatelessWidget {
@@ -44,7 +45,7 @@ class CustomTabBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 10,
-                ), // 👈 top/bottom padding here
+                ),
                 decoration: BoxDecoration(
                   color:
                       isSelected ? const Color(0xFF862633) : Colors.transparent,
@@ -60,8 +61,7 @@ class CustomTabBar extends StatelessWidget {
                         height: 20,
                         color: isSelected ? Colors.white : Colors.grey[700],
                       ),
-                    if (tab.image != null)
-                      const SizedBox(width: 8), // spacing between icon & text
+                    if (tab.image != null) const SizedBox(width: 8),
                     Text(
                       tab.label,
                       style: GoogleFonts.inter(
@@ -94,45 +94,32 @@ class NutritionPage extends StatefulWidget {
 }
 
 class _NutritionPageState extends State<NutritionPage> {
-  int _selectedTab = 0; // 0 for Nutrition, 1 for Fitness
+  int _selectedTab = 0;
   final PageController _pageController = PageController();
+
+  var notifications;
 
   @override
   void initState() {
     super.initState();
     _pageController.addListener(() {
-      // Sync the tab indicator with page view
       setState(() {
         _selectedTab = _pageController.page!.round();
       });
     });
-      _loadNotifications();
+    _loadNotifications();
   }
 
-  var notifications;
-
-   Future<List<dynamic>?> fetchNotifications() async {
+  Future<List<dynamic>?> fetchNotifications() async {
     try {
-      // Get backend URL
       final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
-      if (backendUrl.isEmpty) {
-        print("⚠️ BACKEND_URL is empty in .env");
-        return null;
-      }
+      if (backendUrl.isEmpty) return null;
 
-      // Get token from secure storage
       final storage = FlutterSecureStorage();
       final token = await storage.read(key: 'token');
-      if (token == null) {
-        print("⚠️ No auth token found in storage");
-        return null;
-      }
+      if (token == null) return null;
 
-      // Build full URL
       final String url = '$backendUrl/app/notifications';
-      print("Fetching notifications from: $url");
-
-      // Make GET request with Authorization header
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -143,14 +130,8 @@ class _NutritionPageState extends State<NutritionPage> {
 
       if (response.statusCode == 200) {
         List<dynamic> data = jsonDecode(response.body);
-        print("✅ Notifications fetched successfully");
-        print("🔔 Number of notifications: ${data.length}");
         return data;
       } else {
-        print(
-          '⚠️ Failed to fetch notifications. Status code: ${response.statusCode}',
-        );
-        print('Response body: ${response.body}');
         return null;
       }
     } catch (e) {
@@ -159,11 +140,38 @@ class _NutritionPageState extends State<NutritionPage> {
     }
   }
 
-Future<void> _loadNotifications() async {
-    final data = await fetchNotifications(); // ✅ await here
+  Future<void> _loadNotifications() async {
+    final data = await fetchNotifications();
     setState(() {
       notifications = data ?? [];
     });
+  }
+
+  Future<void> markNotificationsAsRead() async {
+    try {
+      final String backendUrl = dotenv.env['BACKEND_URL'] ?? '';
+      if (backendUrl.isEmpty) return;
+
+      final storage = FlutterSecureStorage();
+      final token = await storage.read(key: 'token');
+      if (token == null) return;
+
+      final String url = '$backendUrl/app/notifications/read';
+      await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      // refresh UI
+      setState(() {
+        notifications = [];
+      });
+    } catch (e) {
+      print("❌ Error marking notifications as read: $e");
+    }
   }
 
   @override
@@ -224,21 +232,21 @@ Future<void> _loadNotifications() async {
               bottom: 4,
             ),
             child: GestureDetector(
-              onTap: () {
+              onTap: () async {
                 final RenderBox overlay =
                     Overlay.of(context).context.findRenderObject() as RenderBox;
 
-                showMenu(
+                await showMenu(
                   context: context,
                   position: RelativeRect.fromLTRB(
-                    overlay.size.width, // right align
-                    kToolbarHeight, // just below AppBar
+                    overlay.size.width,
+                    kToolbarHeight,
                     0,
                     0,
                   ),
                   items: [
                     PopupMenuItem(
-                      enabled: false, // non-clickable header
+                      enabled: false,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -250,8 +258,6 @@ Future<void> _loadNotifications() async {
                             ),
                           ),
                           const Divider(),
-
-                          // ✅ Handle null safely
                           if (notifications != null && notifications.isNotEmpty)
                             ...notifications.map((n) {
                               return ListTile(
@@ -262,9 +268,11 @@ Future<void> _loadNotifications() async {
                                 title: Text(n["content"] ?? "No content"),
                                 subtitle: Text(
                                   n["createdAt"] != null
-                                      ? DateTime.parse(
-                                        n["createdAt"],
-                                      ).toLocal().toString()
+                                      ? DateFormat('MM/dd/yyyy').format(
+                                        DateTime.parse(
+                                          n["createdAt"],
+                                        ).toLocal(),
+                                      )
                                       : "Unknown time",
                                   style: const TextStyle(fontSize: 12),
                                 ),
@@ -280,6 +288,9 @@ Future<void> _loadNotifications() async {
                     ),
                   ],
                 );
+
+                // mark as read after viewing
+                await markNotificationsAsRead();
               },
               child: Stack(
                 children: [
@@ -289,7 +300,9 @@ Future<void> _loadNotifications() async {
                     width: 24,
                     color: const Color(0xFF862633),
                   ),
-                  if (notifications != null && notifications.isNotEmpty)
+                  if (notifications != null &&
+                      notifications.isNotEmpty &&
+                      notifications.any((n) => n["read"] == false))
                     Positioned(
                       top: 2,
                       right: 2,
@@ -307,7 +320,7 @@ Future<void> _loadNotifications() async {
             ),
           ),
         ],
-    ),
+      ),
       body: Column(
         children: [
           CustomTabBar(
@@ -340,18 +353,6 @@ Future<void> _loadNotifications() async {
           ),
         ],
       ),
-      // floatingActionButton: _selectedTab == 0 ? SizedBox(
-      //   width: 70,
-      //   height: 70,
-      //   child: IconButton(
-      //     icon: const Icon(
-      //       Icons.add_circle,
-      //       size: 70,
-      //       color: Color(0xFF862633),
-      //     ),
-      //     onPressed: () {},
-      //   ),
-      // ) : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: const CustomBottomNavBar(selectedIndex: 1),
     );

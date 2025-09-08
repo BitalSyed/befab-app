@@ -7,8 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 class HealthService {
   final Health _health = Health();
 
-  /// Data types you want to access
-  final List<HealthDataType> _dataTypes = [
+  /// Full list of data types (you had before)
+  final List<HealthDataType> _allDataTypes = [
     HealthDataType.STEPS,
     HealthDataType.HEART_RATE,
     HealthDataType.SLEEP_ASLEEP,
@@ -21,7 +21,6 @@ class HealthService {
     HealthDataType.BODY_TEMPERATURE,
     HealthDataType.WATER,
     HealthDataType.BODY_WATER_MASS,
-
     HealthDataType.DISTANCE_DELTA,
     HealthDataType.SLEEP_AWAKE,
     // HealthDataType.SLEEP_IN_BED,
@@ -42,27 +41,50 @@ class HealthService {
     HealthDataType.SLEEP_UNKNOWN,
   ];
 
+  /// iOS does not support everything in _allDataTypes
+  List<HealthDataType> get _dataTypes {
+    if (Platform.isIOS) {
+      return [
+        HealthDataType.STEPS,
+        HealthDataType.HEART_RATE,
+        HealthDataType.ACTIVE_ENERGY_BURNED,
+        HealthDataType.WEIGHT,
+        HealthDataType.HEIGHT,
+        HealthDataType.BODY_FAT_PERCENTAGE,
+        HealthDataType.BODY_MASS_INDEX,
+        HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+        HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+        HealthDataType.BLOOD_OXYGEN,
+        HealthDataType.SLEEP_ASLEEP,
+        HealthDataType.SLEEP_AWAKE,
+        HealthDataType.SLEEP_REM,
+        HealthDataType.SLEEP_LIGHT,
+        HealthDataType.SLEEP_DEEP,
+      ];
+    }
+    return _allDataTypes;
+  }
+
   /// Permissions mapping (READ / READ_WRITE depending on platform)
-  List<HealthDataAccess> get _permissions =>
-      _dataTypes
-          .map(
-            (type) =>
-                // On iOS some types are READ-only
-                [
-                      HealthDataType.APPLE_MOVE_TIME,
-                      HealthDataType.APPLE_STAND_HOUR,
-                      HealthDataType.APPLE_STAND_TIME,
-                      HealthDataType.WALKING_HEART_RATE,
-                      HealthDataType.ELECTROCARDIOGRAM,
-                      HealthDataType.HIGH_HEART_RATE_EVENT,
-                      HealthDataType.LOW_HEART_RATE_EVENT,
-                      HealthDataType.IRREGULAR_HEART_RATE_EVENT,
-                      HealthDataType.EXERCISE_TIME,
-                    ].contains(type)
-                    ? HealthDataAccess.READ
-                    : HealthDataAccess.READ_WRITE,
-          )
-          .toList();
+  List<HealthDataAccess> get _permissions => _dataTypes.map((type) {
+        if (Platform.isIOS) {
+          return HealthDataAccess.READ;
+        }
+        if ([
+          HealthDataType.APPLE_MOVE_TIME,
+          HealthDataType.APPLE_STAND_HOUR,
+          HealthDataType.APPLE_STAND_TIME,
+          HealthDataType.WALKING_HEART_RATE,
+          HealthDataType.ELECTROCARDIOGRAM,
+          HealthDataType.HIGH_HEART_RATE_EVENT,
+          HealthDataType.LOW_HEART_RATE_EVENT,
+          HealthDataType.IRREGULAR_HEART_RATE_EVENT,
+          HealthDataType.EXERCISE_TIME,
+        ].contains(type)) {
+          return HealthDataAccess.READ;
+        }
+        return HealthDataAccess.READ_WRITE;
+      }).toList();
 
   /// Configure health plugin
   Future<void> configure() async {
@@ -86,45 +108,42 @@ class HealthService {
   void suggestInstallHealthApp(BuildContext context) {
     showDialog(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Health App Required"),
-            content: const Text(
-              "This feature requires Health Connect (Android) or Apple Health (iOS).",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  final url = Uri.parse(
-                    Platform.isAndroid
-                        ? "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
-                        : "https://apps.apple.com/us/app/health/id1110145103",
-                  );
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  }
-                },
-                child: const Text("Install"),
-              ),
-            ],
+      builder: (_) => AlertDialog(
+        title: const Text("Health App Required"),
+        content: const Text(
+          "This feature requires Health Connect (Android) or Apple Health (iOS).",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final url = Uri.parse(
+                Platform.isAndroid
+                    ? "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"
+                    : "https://apps.apple.com/us/app/health/id1110145103",
+              );
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: const Text("Install"),
+          ),
+        ],
+      ),
     );
   }
 
   /// Request runtime + health permissions
   Future<bool> requestAuthorization() async {
-    // Android requires runtime permissions for activity/location
     if (Platform.isAndroid) {
       await Permission.activityRecognition.request();
       await Permission.location.request();
     }
 
-    // Check existing permissions
     bool? hasPermissions = await _health.hasPermissions(
       _dataTypes,
       permissions: _permissions,
@@ -143,8 +162,7 @@ class HealthService {
 
         debugPrint("✅ requestAuthorization returned: $authorized");
 
-        // Additional background/history authorization (Android only)
-        if (Platform.isAndroid) {
+        if (Platform.isAndroid && authorized) {
           await _health.requestHealthDataHistoryAuthorization();
           await _health.requestHealthDataInBackgroundAuthorization();
         }
@@ -182,20 +200,16 @@ class HealthService {
         endTime: to,
       );
 
-      // Group results by datatype
       for (var type in _dataTypes) {
         var filtered = data.where((d) => d.type == type).toList();
-        results[type.toString()] =
-            filtered
-                .map(
-                  (d) => {
-                    "value": d.value,
-                    "unit": d.unitString,
-                    "dateFrom": d.dateFrom.toIso8601String(),
-                    "dateTo": d.dateTo.toIso8601String(),
-                  },
-                )
-                .toList();
+        results[type.toString()] = filtered
+            .map((d) => {
+                  "value": d.value,
+                  "unit": d.unitString,
+                  "dateFrom": d.dateFrom.toIso8601String(),
+                  "dateTo": d.dateTo.toIso8601String(),
+                })
+            .toList();
       }
     } catch (e) {
       results["error"] = e.toString();
