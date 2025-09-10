@@ -945,7 +945,7 @@ class _MealLoggingState extends State<MealLogging> {
                       size: 30,
                       color: Color(0xFF862633),
                     ),
-                    onPressed: () => _openMealForm('snack'),
+                    onPressed: () => _openMealForm('snacks'),
                   ),
                 ),
                 if (nutritionData != null)
