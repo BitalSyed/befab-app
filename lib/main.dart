@@ -31,6 +31,7 @@ import 'package:befab/Screens/SearchFood.dart';
 import 'package:befab/Screens/SignInScreen.dart';
 import 'package:befab/Screens/SignUpScreen.dart';
 import 'package:befab/Screens/SingleNewsLetterScreen.dart';
+import 'package:befab/Screens/DeepDiveScreen.dart';
 import 'package:befab/Screens/SingleReel.dart';
 import 'package:befab/Screens/SingleVideoScreen.dart';
 import 'package:befab/Screens/SplashScreen.dart';
@@ -163,6 +164,15 @@ class _MyAppState extends State<MyApp> {
         '/all-reels': (context) => AllReels(),
         '/single-reel': (context) => SingleReel(),
         '/reel': (context) => Reel(),
+        '/deep-dive': (context) {
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
+
+          final deepDives = args?['deepDives'] as List<dynamic>? ?? [];
+
+          return DeepDiveScreen(deepDives: deepDives);
+        },
         '/message': (context) => MessagesPage(),
         '/chat-screen': (context) {
           final args =

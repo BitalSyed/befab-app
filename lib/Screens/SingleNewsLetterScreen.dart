@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 final secureStorage = const FlutterSecureStorage();
 
@@ -58,6 +59,11 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
       return const Scaffold(body: Center(child: Text("Not found")));
     }
 
+    final pdfUrl =
+        newsletter?["pdf"] != null
+            ? "${dotenv.env['BACKEND_URL']}${newsletter!["pdf"]}"
+            : null;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -99,48 +105,77 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (newsletter?["picture"] != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  "${dotenv.env['BACKEND_URL']}${newsletter!["picture"]}",
-                  fit: BoxFit.cover,
-                  errorBuilder:
-                      (_, __, ___) => const Icon(Icons.image_not_supported),
+      body: Stack(
+        children: [
+          pdfUrl != null
+              ? SfPdfViewer.network(pdfUrl)
+              : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (newsletter?["picture"] != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          "${dotenv.env['BACKEND_URL']}${newsletter!["picture"]}",
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Text(
+                      newsletter?["title"] ?? "Headline",
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "PUBLISHED ON: ${DateTime.parse(newsletter?["createdAt"]).toLocal().toString().split(' ')[0]}",
+                      style: GoogleFonts.inter(fontSize: 15),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      newsletter?["description"] ?? "",
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF9C9B9D),
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 16),
-            Text(
-              newsletter?["title"] ?? "Headline",
-              style: GoogleFonts.inter(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              minimum: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/deep-dive',
+                      arguments: {'deepDives': newsletter?['deepDives'] ?? []},
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF862633),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text("Done Reading"),
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              "PUBLISHED ON: ${DateTime.parse(newsletter?["createdAt"]).toLocal().toString().split(' ')[0]}",
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              newsletter?["description"] ?? "",
-              style: GoogleFonts.inter(
-                color: const Color(0xFF9C9B9D),
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
