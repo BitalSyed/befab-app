@@ -51,17 +51,18 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
 
   @override
   Widget build(BuildContext context) {
-  if (loading) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  }
+    if (loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-  if (newsletter == null) {
-    return const Scaffold(body: Center(child: Text("Not found")));
-  }
+    if (newsletter == null) {
+      return const Scaffold(body: Center(child: Text("Not found")));
+    }
 
-  final pdfUrl = newsletter?["pdf"] != null
-      ? "${dotenv.env['BACKEND_URL']}${newsletter!["pdf"]}"
-      : null;
+    final pdfUrl =
+        newsletter?["pdf"] != null
+            ? "${dotenv.env['BACKEND_URL']}${newsletter!["pdf"]}"
+            : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -109,42 +110,42 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
           pdfUrl != null
               ? SfPdfViewer.network(pdfUrl)
               : SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (newsletter?["picture"] != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            "${dotenv.env['BACKEND_URL']}${newsletter!["picture"]}",
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      Text(
-                        newsletter?["title"] ?? "Headline",
-                        style: GoogleFonts.inter(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (newsletter?["picture"] != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          "${dotenv.env['BACKEND_URL']}${newsletter!["picture"]}",
+                          fit: BoxFit.cover,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "PUBLISHED ON: ${DateTime.parse(newsletter?["createdAt"]).toLocal().toString().split(' ')[0]}",
-                        style: GoogleFonts.inter(fontSize: 15),
+                    const SizedBox(height: 16),
+                    Text(
+                      newsletter?["title"] ?? "Headline",
+                      style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        newsletter?["description"] ?? "",
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF9C9B9D),
-                          fontSize: 16,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "PUBLISHED ON: ${DateTime.parse(newsletter?["createdAt"]).toLocal().toString().split(' ')[0]}",
+                      style: GoogleFonts.inter(fontSize: 15),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      newsletter?["description"] ?? "",
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF9C9B9D),
+                        fontSize: 16,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
           Positioned(
             left: 0,
             right: 0,
@@ -154,7 +155,13 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/deep-dive',
+                      arguments: {'deepDives': newsletter?['deepDives'] ?? []},
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF862633),
                     foregroundColor: Colors.white,
