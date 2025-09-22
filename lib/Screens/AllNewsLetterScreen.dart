@@ -73,11 +73,10 @@ class _AllNewslettersScreenState extends State<AllNewslettersScreen> {
                     onTap: () async {
                       await writeSecureData("newsletter_id", n["_id"]);
                       Navigator.pushNamed(
-  context,
-  '/single-newsletter',
-  arguments: {'newsletterId': n["_id"]}, // <-- pass Map
-);
-
+                        context,
+                        '/single-newsletter',
+                        arguments: {'newsletterId': n["_id"]}, // <-- pass Map
+                      );
                     },
 
                     child: Container(
@@ -96,7 +95,7 @@ class _AllNewslettersScreenState extends State<AllNewslettersScreen> {
                                   (n["picture"] != null &&
                                           n["picture"].toString().isNotEmpty)
                                       ? Image.network(
-                                        "${dotenv.env['BACKEND_URL']}${n["picture"]}",
+                                        "${n["picture"]}",
                                         fit: BoxFit.cover,
                                         errorBuilder:
                                             (_, __, ___) => const Icon(

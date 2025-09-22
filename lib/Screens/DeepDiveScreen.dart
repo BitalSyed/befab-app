@@ -1,6 +1,5 @@
 import 'package:befab/components/DeepDiveCard.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
@@ -85,8 +84,7 @@ class DeepDiveScreen extends StatelessWidget {
                             ),
                             onTap: () {
                               final fetchedPdf = dd["pdf"];
-                              final pdfUrl =
-                                  dotenv.env['BACKEND_URL']! + dd["pdf"];
+                              final pdfUrl = dd["pdf"];
                               if (fetchedPdf != null && fetchedPdf.isNotEmpty) {
                                 Navigator.push(
                                   context,

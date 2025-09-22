@@ -61,9 +61,10 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
 
     final pdfUrl =
         newsletter?["pdf"] != null
-            ? "${dotenv.env['BACKEND_URL']}${newsletter!["pdf"]}"
+            ? "${newsletter!["pdf"]}"
             : null;
 
+    print(newsletter!["picture"]);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -118,7 +119,7 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: Image.network(
-                          "${dotenv.env['BACKEND_URL']}${newsletter!["picture"]}",
+                          "${newsletter!["picture"]}",
                           fit: BoxFit.cover,
                         ),
                       ),
