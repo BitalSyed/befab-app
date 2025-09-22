@@ -41,8 +41,6 @@ import 'package:befab/Screens/VideoCategoriesScreen.dart';
 import 'package:befab/Screens/VitalsMeasurement.dart';
 import 'package:befab/Screens/WelcomeScreen.dart';
 import 'package:befab/components/FitnessGroup.dart';
-import 'package:befab/components/notifications_popup.dart';
-import 'package:befab/services/health_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
