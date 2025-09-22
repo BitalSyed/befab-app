@@ -64,7 +64,6 @@ class _SingleNewsletterScreenState extends State<SingleNewsletterScreen> {
             ? "${newsletter!["pdf"]}"
             : null;
 
-    print(newsletter!["picture"]);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
