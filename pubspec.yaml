@@ -2,7 +2,7 @@ name: befab
 description: "A new Flutter project."
 publish_to: "none"
 
-version: 1.0.0+3
+version: 1.0.3+15
 
 environment:
   sdk: ">=3.7.0 <4.0.0"
@@ -41,6 +41,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # for app icon
+  flutter_launcher_icons: ^0.14.4
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.jpeg"
 
 flutter:
   uses-material-design: true
