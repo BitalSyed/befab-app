@@ -1,19 +1,14 @@
-// dashboard_screen.dart
 import 'package:befab/charts/WeeklyActivityChart.dart';
 import 'package:befab/components/CustomAppHeader.dart';
 import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/ImageTextGridCard.dart';
 import 'package:befab/components/MiniStatCard.dart';
 import 'package:befab/components/VitalsCard.dart';
+import 'package:befab/services/health_service/health_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:health/health.dart';
-import 'package:intl/intl.dart';
-import '../services/health_service.dart'; // Make sure to import your HealthService class
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'dart:convert';
+import '../services/health_service/health_service.dart'; // Make sure to import your HealthService class
 
 class FitnessSummary extends StatefulWidget {
   const FitnessSummary({super.key});
@@ -37,237 +32,31 @@ class _FitnessSummaryState extends State<FitnessSummary> {
   }
 
   Future<void> _loadHealthData() async {
-    bool isInstalled = await healthService.isHealthAppInstalled();
+    final isInstalled = await healthService.isHealthAppInstalled();
     if (!isInstalled) {
       healthService.suggestInstallHealthApp(context);
       return;
     }
 
-    bool authorized = await healthService.requestAuthorization();
-    debugPrint("$authorized");
+    final authorized = await healthService.requestAuthorization();
     if (!authorized) {
-      debugPrint("❌ Health permissions denied!");
+      debugPrint("❌ Health permissions denied");
       return;
     }
 
-    Map<String, dynamic> data = await healthService.fetchAllData(
-      from: DateTime.now().subtract(const Duration(days: 30)),
-      to: DateTime.now(),
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day, 0, 1);
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    final data = await healthService.fetchAllData(
+      from: startOfDay,
+      to: endOfDay,
     );
 
     if (!mounted) return;
-    setState(() {
-      healthData = data;
-    });
-
-    // sendData(data);
+    setState(() => healthData = data);
 
     debugPrint("✅ Platform: ${healthService.getPlatform()}");
-    debugPrint(
-      "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')} AND ${data['HealthDataType.STEPS']}",
-    );
-  }
-
-  // Helper to get a single value safely from healthData
-  /// Sums all entries in `healthData[type]` and returns "total unit"
-  /// Works with entries shaped like:
-  /// { "value": {"numericValue": 10}, "unit": "COUNT", ... }
-  // --- Simplified units map ---
-  Map<String, String> simplifiedUnits = {
-    // Distance
-    "METER": "m",
-    "KILOMETER": "km",
-    "MILE": "mi",
-    "YARD": "yd",
-    "FOOT": "ft",
-
-    // Weight
-    "GRAM": "g",
-    "KILOGRAM": "kg",
-    "OUNCE": "oz",
-    "POUND": "lb",
-
-    // Pressure
-    "MILLIMETER_OF_MERCURY": "mmHg",
-    "INCH_OF_MERCURY": "inHg",
-    "PASCAL": "Pa",
-    "KILOPASCAL": "kPa",
-
-    // Temperature
-    "CELSIUS": "°C",
-    "FAHRENHEIT": "°F",
-    "KELVIN": "K",
-
-    // Energy
-    "CALORIE": "kcal",
-    "KILOJOULE": "kJ",
-
-    // Time
-    "SECOND": "s",
-    "MINUTE": "min",
-    "HOUR": "h",
-    "DAY": "d",
-
-    // Volume / Liquids
-    "LITER": "L",
-    "MILLILITER": "mL",
-    "FLUID_OUNCE_US": "fl oz",
-
-    // Counts / Steps
-    "COUNT": "",
-    "BEAT": "beat",
-    "BEAT_PER_MINUTE": "bpm",
-    "REP": "rep",
-
-    // Percentages
-    "PERCENTAGE": "%",
-
-    // Sleep / activity types
-    "SLEEP_ASLEEP": "sleep",
-    "SLEEP_IN_BED": "in bed",
-    "SLEEP_AWAKE": "awake",
-
-    // Other HealthKit / Health Connect types
-    "DISTANCE_WALKING_RUNNING": "m",
-    "DISTANCE_CYCLING": "m",
-    "ACTIVE_ENERGY_BURNED": "kcal",
-    "BASAL_ENERGY_BURNED": "kcal",
-    "BODY_MASS_INDEX": "BMI",
-    "BODY_FAT_PERCENTAGE": "%",
-    "LEAN_BODY_MASS": "kg",
-    "RESTING_HEART_RATE": "bpm",
-    "HEART_RATE": "bpm",
-    "STEP_COUNT": "",
-    "FLIGHTS_CLIMBED": "fl",
-    "WALKING_HEART_RATE": "bpm",
-    "VO2_MAX": "ml/kg/min",
-    "DISTANCE_SWIMMING": "m",
-    "SWIM_STROKE_COUNT": "stroke",
-    "WORKOUT_DURATION": "min",
-    "DURATION": "min",
-    "BODY_TEMPERATURE": "°C",
-    "BLOOD_PRESSURE_SYSTOLIC": "mmHg",
-    "BLOOD_PRESSURE_DIASTOLIC": "mmHg",
-    "BLOOD_GLUCOSE": "mg/dL",
-    "BLOOD_OXYGEN": "%",
-    "RESPIRATORY_RATE": "breaths/min",
-    "OXYGEN_SATURATION": "%",
-    "HEADACHE_SEVERITY": "",
-    "MOOD": "",
-    "STRESS_LEVEL": "",
-    "WATER": "L",
-    "CAFFEINE": "mg",
-    "ALCOHOL_CONSUMED": "g",
-    "TOBACCO_SMOKED": "cig",
-    "BODY_MASS": "kg",
-    "HEIGHT": "m",
-    "BEATS_PER_MINUTE": "bpm",
-    "PERCENT": "%",
-    "RESPIRATIONS_PER_MINUTE": "resp/min",
-  };
-
-  // --- Your function remains unchanged except mapping unit at the end ---
-  Map<String, dynamic> getHealthValue(
-    String type, {
-    int decimalsIfDouble = 2,
-    bool convertMetersToKm = false,
-  }) {
-    if (healthData == null) return {"data": "--", "unit": ""};
-
-    final raw = healthData![type];
-    if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
-
-    // Get today's date in YYYY-MM-DD format
-    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    // --- pick the most common unit present in the list ---
-    String _resolveUnit(List list) {
-      final counts = <String, int>{};
-      for (final e in list) {
-        if (e is Map) {
-          String? u;
-          if (e['unit'] is String) {
-            u = e['unit'] as String;
-          }
-          if (u != null && u.isNotEmpty) {
-            counts[u] = (counts[u] ?? 0) + 1;
-          }
-        }
-      }
-      if (counts.isEmpty) return '';
-      return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-    }
-
-    final unitFromData = _resolveUnit(raw);
-
-    // --- sum numeric values for TODAY only ---
-    num total = 0;
-
-    for (final e in raw) {
-      if (e is! Map) continue;
-
-      // Check if the entry is from today
-      final dateFrom = e['dateFrom'];
-      if (dateFrom is! String || !dateFrom.contains(today)) {
-        continue; // Skip entries not from today
-      }
-
-      final value = e['value'];
-
-      num? numericValue;
-
-      if (value is NumericHealthValue) {
-        // ✅ plugin object case
-        numericValue = value.numericValue;
-      } else if (value is Map) {
-        // ✅ in case the plugin/data source returns it as a Map
-        numericValue = value['numericValue'] as num?;
-      }
-
-      if (numericValue != null) {
-        total += numericValue;
-      }
-    }
-
-    // optional unit conversion
-    String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
-    if (convertMetersToKm && unitFromData == "METER") {
-      total = total / 1000;
-      outUnit = "km";
-    }
-
-    // format nicely
-    String formatted;
-    if (total % 1 == 0) {
-      formatted = total.toInt().toString();
-    } else {
-      formatted = total.toStringAsFixed(decimalsIfDouble);
-    }
-
-    return {"data": formatted, "unit": outUnit};
-  }
-
-  static final String _baseUrl = dotenv.env['BACKEND_URL'] ?? "";
-
-  // Function to send JSON data
-  static Future<void> sendData(Map<String, dynamic> data) async {
-    final url = Uri.parse("$_baseUrl/data");
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(data),
-      );
-
-      if (response.statusCode == 200) {
-        print("✅ Success: ${response.body}");
-      } else {
-        print("❌ Failed: ${response.statusCode} - ${response.body}");
-      }
-    } catch (e) {
-      print("⚡ Error sending request: $e");
-    }
+    debugPrint("✅ Today’s health data: $data");
   }
 
   List<num> mapWeeklyData(List raw) {
@@ -366,27 +155,30 @@ class _FitnessSummaryState extends State<FitnessSummary> {
     // --- Activity ---
     num steps =
         num.tryParse(
-          getHealthValue('HealthDataType.STEPS')['data']?.toString() ?? '0',
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.STEPS',
+              )['data']?.toString() ??
+              '0',
         ) ??
         0;
-    num distance =
-        (num.tryParse(
-              getHealthValue(
-                    'HealthDataType.DISTANCE_DELTA',
-                  )['data']?.toString() ??
-                  '0',
-            ) ??
-            0) +
-        (num.tryParse(
-              getHealthValue(
-                    'HealthDataType.DISTANCE_CYCLING',
-                  )['data']?.toString() ??
-                  '0',
-            ) ??
-            0);
+    // num distance =
+    //     (num.tryParse(
+    //           HealthUtils.getHealthValue(healthData,'HealthDataType.DISTANCE_DELTA')['data']?.toString() ?? '0',
+    //                 'HealthDataType.DISTANCE_DELTA',
+    //               )['data']?.toString() ??
+    //               '0',
+    //         ) ??
+    //         0) +
+    //     (num.tryParse(
+    //         HealthUtils.getHealthValue(healthData,'HealthDataType.DISTANCE_CYCLING')['data']?.toString() ??
+    //               '0',
+    //         ) ??
+    //         0);
     num activeCalories =
         num.tryParse(
-          getHealthValue(
+          HealthUtils.getHealthValue(
+                healthData,
                 'HealthDataType.ACTIVE_ENERGY_BURNED',
               )['data']?.toString() ??
               '0',
@@ -394,13 +186,18 @@ class _FitnessSummaryState extends State<FitnessSummary> {
         0;
     num workouts =
         num.tryParse(
-          getHealthValue('HealthDataType.WORKOUT')['data']?.toString() ?? '0',
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.WORKOUT',
+              )['data']?.toString() ??
+              '0',
         ) ??
         0;
 
     num restingHR =
         num.tryParse(
-          getHealthValue(
+          HealthUtils.getHealthValue(
+                healthData,
                 'HealthDataType.RESTING_HEART_RATE',
               )['data']?.toString() ??
               '70',
@@ -408,7 +205,8 @@ class _FitnessSummaryState extends State<FitnessSummary> {
         70;
     num hrv =
         num.tryParse(
-          getHealthValue(
+          HealthUtils.getHealthValue(
+                healthData,
                 'HealthDataType.HEART_RATE_VARIABILITY_RMSSD',
               )['data']?.toString() ??
               '30',
@@ -416,14 +214,18 @@ class _FitnessSummaryState extends State<FitnessSummary> {
         30;
     num spo2 =
         num.tryParse(
-          getHealthValue('HealthDataType.BLOOD_OXYGEN')['data']?.toString() ??
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.BLOOD_OXYGEN',
+              )['data']?.toString() ??
               '95',
         ) ??
         95;
 
     num bmi =
         num.tryParse(
-          getHealthValue(
+          HealthUtils.getHealthValue(
+                healthData,
                 'HealthDataType.BODY_MASS_INDEX',
               )['data']?.toString() ??
               '25',
@@ -431,7 +233,8 @@ class _FitnessSummaryState extends State<FitnessSummary> {
         25;
     num bodyFat =
         num.tryParse(
-          getHealthValue(
+          HealthUtils.getHealthValue(
+                healthData,
                 'HealthDataType.BODY_FAT_PERCENTAGE',
               )['data']?.toString() ??
               '20',
@@ -439,26 +242,39 @@ class _FitnessSummaryState extends State<FitnessSummary> {
         20;
     num leanMass =
         num.tryParse(
-          getHealthValue('HealthDataType.LEAN_BODY_MASS')['data']?.toString() ??
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.LEAN_BODY_MASS',
+              )['data']?.toString() ??
               '50',
         ) ??
         50;
 
     num sleepTotal =
         num.tryParse(
-          getHealthValue('HealthDataType.SLEEP_SESSION')['data']?.toString() ??
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.SLEEP_SESSION',
+              )['data']?.toString() ??
               '0',
         ) ??
         0;
     num sleepDeep =
         num.tryParse(
-          getHealthValue('HealthDataType.SLEEP_DEEP')['data']?.toString() ??
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.SLEEP_DEEP',
+              )['data']?.toString() ??
               '0',
         ) ??
         0;
     num sleepREM =
         num.tryParse(
-          getHealthValue('HealthDataType.SLEEP_REM')['data']?.toString() ?? '0',
+          HealthUtils.getHealthValue(
+                healthData,
+                'HealthDataType.SLEEP_REM',
+              )['data']?.toString() ??
+              '0',
         ) ??
         0;
 
@@ -468,7 +284,7 @@ class _FitnessSummaryState extends State<FitnessSummary> {
     // --- Normalize into 0–1 ranges ---
     num activityScore =
         (steps / 10000).clamp(0, 1) * 0.4 +
-        (distance / 5000).clamp(0, 1) * 0.3 +
+        // (distance / 5000).clamp(0, 1) * 0.3 +
         (activeCalories / 500).clamp(0, 1) * 0.2 +
         (workouts / 2).clamp(0, 1) * 0.1;
 
@@ -560,12 +376,22 @@ class _FitnessSummaryState extends State<FitnessSummary> {
             ),
             MiniStatsGrid(
               stats: {
-                'h': getHealthValue('HealthDataType.HEART_RATE'),
-                's': getHealthValue('HealthDataType.STEPS'),
-                'calories': getHealthValue(
+                'h': HealthUtils.getHealthValue(
+                  healthData,
+                  'HealthDataType.HEART_RATE',
+                ),
+                's': HealthUtils.getHealthValue(
+                  healthData,
+                  'HealthDataType.STEPS',
+                ),
+                'calories': HealthUtils.getHealthValue(
+                  healthData,
                   'HealthDataType.TOTAL_CALORIES_BURNED',
                 ),
-                'sleep': getHealthValue('HealthDataType.SLEEP_SESSION'),
+                'sleep': HealthUtils.getHealthValue(
+                  healthData,
+                  'HealthDataType.SLEEP_SESSION',
+                ),
               },
             ),
 
@@ -604,13 +430,16 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 {
                   'label': 'Sleep',
                   'value':
-                      "${getHealthValue('HealthDataType.SLEEP_SESSION')['data']} ${getHealthValue('HealthDataType.SLEEP_SESSION')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_SESSION')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_SESSION')['unit']}",
                 },
                 {
                   'label': 'Distance',
                   'value': () {
                     final raw =
-                        getHealthValue('HealthDataType.DISTANCE_DELTA')['data'];
+                        HealthUtils.getHealthValue(
+                          healthData,
+                          'HealthDataType.DISTANCE_DELTA',
+                        )['data'];
                     if (raw == '--') return '--';
                     final meters = double.tryParse(raw.toString()) ?? 0;
                     final miles = meters * 0.000621371;
@@ -620,11 +449,15 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 {
                   'label': 'Active Calories',
                   'value':
-                      "${getHealthValue('HealthDataType.ACTIVE_ENERGY_BURNED')['data']} ${getHealthValue('HealthDataType.ACTIVE_ENERGY_BURNED')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.ACTIVE_ENERGY_BURNED')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.ACTIVE_ENERGY_BURNED')['unit']}",
                 },
                 {
                   'label': 'Activity Minutes',
-                  'value': getHealthValue('HealthDataType.WORKOUT')['data'],
+                  'value':
+                      HealthUtils.getHealthValue(
+                        healthData,
+                        'HealthDataType.WORKOUT',
+                      )['data'],
                 },
               ],
             ),
@@ -638,22 +471,22 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 {
                   'label': 'Heart Rate',
                   'value':
-                      "${getHealthValue('HealthDataType.HEART_RATE')['data']} ${getHealthValue('HealthDataType.HEART_RATE')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.HEART_RATE')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.HEART_RATE')['unit']}",
                 },
                 {
                   'label': 'Blood Pressure',
                   'value':
-                      "${getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['data']}/${getHealthValue('HealthDataType.BLOOD_PRESSURE_DIASTOLIC')['data']} ${getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'] != 'MILLIMETER_OF_MERCURY' ? getHealthValue('HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'] : 'mmHg'}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['data']}/${HealthUtils.getHealthValue(healthData, 'HealthDataType.BLOOD_PRESSURE_DIASTOLIC')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'] != 'MILLIMETER_OF_MERCURY' ? HealthUtils.getHealthValue(healthData, 'HealthDataType.BLOOD_PRESSURE_SYSTOLIC')['unit'] : 'mmHg'}",
                 },
                 {
                   'label': 'Oxygen (SpO2)',
                   'value':
-                      "${getHealthValue('HealthDataType.BLOOD_OXYGEN')['data']} ${getHealthValue('HealthDataType.BLOOD_OXYGEN')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.BLOOD_OXYGEN')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.BLOOD_OXYGEN')['unit']}",
                 },
                 {
                   'label': 'Respiratory Rate',
                   'value':
-                      "${getHealthValue('HealthDataType.RESPIRATORY_RATE')['data']} ${getHealthValue('HealthDataType.RESPIRATORY_RATE')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.RESPIRATORY_RATE')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.RESPIRATORY_RATE')['unit']}",
                 },
               ],
             ),
@@ -667,28 +500,32 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 {
                   'label': 'Weight',
                   'value':
-                      "${(() {
-                        final raw = getHealthValue('HealthDataType.WEIGHT')['data'];
+                      (() {
+                        final raw =
+                            HealthUtils.getHealthValue(
+                              healthData,
+                              'HealthDataType.WEIGHT',
+                            )['data'];
                         if (raw == '--') return '--';
                         final kg = double.tryParse(raw.toString()) ?? 0;
                         final lbs = kg * 2.20462;
                         return "${lbs.toStringAsFixed(1)} lb";
-                      })()}",
+                      })(),
                 },
                 {
                   'label': 'BMI',
                   'value':
-                      "${getHealthValue('HealthDataType.BODY_MASS_INDEX')['data']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.BODY_MASS_INDEX')['data']}",
                 },
                 {
                   'label': 'Body Fat',
                   'value':
-                      "${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['data']} ${getHealthValue('HealthDataType.BODY_FAT_PERCENTAGE')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.BODY_FAT_PERCENTAGE')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.BODY_FAT_PERCENTAGE')['unit']}",
                 },
                 {
                   'label': 'Lean Mass',
                   'value':
-                      "${getHealthValue('HealthDataType.LEAN_BODY_MASS')['data']} ${getHealthValue('HealthDataType.LEAN_BODY_MASS')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.LEAN_BODY_MASS')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.LEAN_BODY_MASS')['unit']}",
                 },
               ],
             ),
@@ -702,17 +539,17 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                 {
                   'label': 'Duration',
                   'value':
-                      "${getHealthValue('HealthDataType.SLEEP_SESSION')['data']} ${getHealthValue('HealthDataType.SLEEP_SESSION')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_SESSION')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_SESSION')['unit']}",
                 },
                 {
                   'label': 'Deep Sleep',
                   'value':
-                      "${getHealthValue('HealthDataType.SLEEP_DEEP')['data']} ${getHealthValue('HealthDataType.SLEEP_DEEP')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_DEEP')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_DEEP')['unit']}",
                 },
                 {
                   'label': 'REM Sleep',
                   'value':
-                      "${getHealthValue('HealthDataType.SLEEP_REM')['data']} ${getHealthValue('HealthDataType.SLEEP_REM')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_REM')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.SLEEP_REM')['unit']}",
                 },
                 {'label': 'Sleep Quality', 'value': getSleepQualityTerm()},
               ],
@@ -727,7 +564,7 @@ class _FitnessSummaryState extends State<FitnessSummary> {
                   ),
                   'text': 'Cycle Tracking',
                   'a':
-                      "${getHealthValue('HealthDataType.DISTANCE_CYCLING')['data']} ${getHealthValue('HealthDataType.DISTANCE_CYCLING')['unit']}",
+                      "${HealthUtils.getHealthValue(healthData, 'HealthDataType.DISTANCE_CYCLING')['data']} ${HealthUtils.getHealthValue(healthData, 'HealthDataType.DISTANCE_CYCLING')['unit']}",
                   'imageBgColor': const Color.fromRGBO(147, 51, 234, 0.2),
                 },
                 {

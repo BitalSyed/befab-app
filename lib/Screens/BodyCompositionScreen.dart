@@ -5,7 +5,7 @@ import 'package:befab/components/CustomAppHeader.dart';
 import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/HealthStatusCard.dart';
 import 'package:befab/components/StatusCard.dart';
-import 'package:befab/services/health_service.dart';
+import 'package:befab/services/health_service/health_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // Ensure this import is at the top

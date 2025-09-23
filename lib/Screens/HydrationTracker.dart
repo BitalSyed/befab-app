@@ -1,13 +1,8 @@
-import 'package:befab/Screens/ActivityCalendarPage.dart';
 import 'package:befab/charts/HydrationTrackerWidget.dart';
 import 'package:befab/components/CustomBottomNavBar.dart';
-import 'package:befab/components/HeadingWithImageRow.dart';
-import 'package:befab/components/WeeklyStatusWidget.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // Ensure this import is at the top
-import 'package:mobile_scanner/mobile_scanner.dart';
-import '../services/health_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';

@@ -1,16 +1,13 @@
-// dashboard_screen.dart
 import 'dart:convert';
-import 'package:befab/Screens/NewGoalEntryForm.dart';
 import 'package:befab/charts/WeightLossProgressChart.dart';
 import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/CustomDrawer.dart';
-import 'package:befab/services/health_service.dart';
-import 'package:befab/services/secure_storage_service.dart';
+import 'package:befab/services/health_service/health_service.dart';
+import 'package:befab/services/health_service/health_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:health/health.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
@@ -29,6 +26,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String lastName = "";
   String profilePhoto = "";
   bool isLoading = true;
+  var data;
+  var notifications;
+  final healthService = HealthService();
+  Map<String, dynamic>? healthData;
 
   @override
   void initState() {
@@ -52,9 +53,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  final HealthService healthService = HealthService();
-  Map<String, dynamic>? healthData;
-
   Future<void> _loadHealthData() async {
     bool isInstalled = await healthService.isHealthAppInstalled();
     if (!isInstalled) {
@@ -69,199 +67,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
+    // Fetch only today's data (12:01 AM to 11:59 PM, local time)
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day, 0, 1);
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
     Map<String, dynamic> data = await healthService.fetchAllData(
-      from: DateTime.now().subtract(const Duration(days: 30)),
-      to: DateTime.now(),
+      from: startOfDay,
+      to: endOfDay,
     );
+
+    debugPrint("->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->");
+    debugPrint("$data");
+    debugPrint("->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->");
 
     if (!mounted) return;
     setState(() {
       healthData = data;
     });
 
-    sendData(data);
-
-    debugPrint("✅ Platform: ${healthService.getPlatform()}");
-    debugPrint(
-      "✅ Fetched health data: ${getHealthValue('HealthDataType.STEPS')}",
-    );
-  }
-
-  static final String _baseUrl = dotenv.env['BACKEND_URL'] ?? "";
-  static Future<void> sendData(Map<String, dynamic> data) async {
-    final url = Uri.parse("$_baseUrl/app/data");
-    final storage = FlutterSecureStorage();
-    final token = await storage.read(key: 'token');
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(data),
-      );
-
-      if (response.statusCode == 200) {
-        print("✅ Success: ${response.body}");
-      } else {
-        print("❌ Failed: ${response.statusCode} - ${response.body}");
-      }
-    } catch (e) {
-      print("⚡ Error sending request: $e");
+    // ✅ Print only the 5 metrics
+    final keys = [
+      "HEIGHT",
+      "BODY_MASS",
+      "STEP_COUNT",
+      "ACTIVE_ENERGY_BURNED",
+      "HEART_RATE",
+    ];
+    debugPrint("->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->");
+    for (final k in keys) {
+      debugPrint("📊 $k => ${data[k]}");
     }
-  }
-
-  // Helper to get a single value safely from healthData
-  Map<String, String> simplifiedUnits = {
-    "METER": "m",
-    "KILOMETER": "km",
-    "MILE": "mi",
-    "YARD": "yd",
-    "FOOT": "ft",
-    "GRAM": "g",
-    "KILOGRAM": "kg",
-    "OUNCE": "oz",
-    "POUND": "lb",
-    "MILLIMETER_OF_MERCURY": "mmHg",
-    "INCH_OF_MERCURY": "inHg",
-    "PASCAL": "Pa",
-    "KILOPASCAL": "kPa",
-    "CELSIUS": "°C",
-    "FAHRENHEIT": "°F",
-    "KELVIN": "K",
-    "CALORIE": "kcal",
-    "KILOJOULE": "kJ",
-    "SECOND": "s",
-    "MINUTE": "min",
-    "HOUR": "h",
-    "DAY": "d",
-    "LITER": "L",
-    "MILLILITER": "mL",
-    "FLUID_OUNCE_US": "fl oz",
-    "COUNT": "",
-    "BEAT": "beat",
-    "BEAT_PER_MINUTE": "bpm",
-    "REP": "rep",
-    "PERCENTAGE": "%",
-    "SLEEP_ASLEEP": "sleep",
-    "SLEEP_IN_BED": "in bed",
-    "SLEEP_AWAKE": "awake",
-    "DISTANCE_WALKING_RUNNING": "m",
-    "DISTANCE_CYCLING": "m",
-    "ACTIVE_ENERGY_BURNED": "kcal",
-    "BASAL_ENERGY_BURNED": "kcal",
-    "BODY_MASS_INDEX": "BMI",
-    "BODY_FAT_PERCENTAGE": "%",
-    "LEAN_BODY_MASS": "kg",
-    "RESTING_HEART_RATE": "bpm",
-    "HEART_RATE": "bpm",
-    "STEP_COUNT": "",
-    "FLIGHTS_CLIMBED": "fl",
-    "WALKING_HEART_RATE": "bpm",
-    "VO2_MAX": "ml/kg/min",
-    "DISTANCE_SWIMMING": "m",
-    "SWIM_STROKE_COUNT": "stroke",
-    "WORKOUT_DURATION": "min",
-    "DURATION": "min",
-    "BODY_TEMPERATURE": "°C",
-    "BLOOD_PRESSURE_SYSTOLIC": "mmHg",
-    "BLOOD_PRESSURE_DIASTOLIC": "mmHg",
-    "BLOOD_GLUCOSE": "mg/dL",
-    "BLOOD_OXYGEN": "%",
-    "RESPIRATORY_RATE": "breaths/min",
-    "OXYGEN_SATURATION": "%",
-    "HEADACHE_SEVERITY": "",
-    "MOOD": "",
-    "STRESS_LEVEL": "",
-    "WATER": "L",
-    "CAFFEINE": "mg",
-    "ALCOHOL_CONSUMPTION": "g",
-    "TOBACCO_SMOKED": "cig",
-    "BODY_MASS": "kg",
-    "HEIGHT": "m",
-    "BEATS_PER_MINUTE": "bpm",
-    "PERCENT": "%",
-  };
-
-  Map<String, dynamic> getHealthValue(
-    String type, {
-    int decimalsIfDouble = 2,
-    bool convertMetersToKm = false,
-  }) {
-    if (healthData == null) return {"data": "--", "unit": ""};
-
-    final raw = healthData![type];
-    if (raw is! List || raw.isEmpty) return {"data": "--", "unit": ""};
-
-    // Get today's date in YYYY-MM-DD format
-    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    // --- pick the most common unit present in the list ---
-    String _resolveUnit(List list) {
-      final counts = <String, int>{};
-      for (final e in list) {
-        if (e is Map) {
-          String? u;
-          if (e['unit'] is String) {
-            u = e['unit'] as String;
-          }
-          if (u != null && u.isNotEmpty) {
-            counts[u] = (counts[u] ?? 0) + 1;
-          }
-        }
-      }
-      if (counts.isEmpty) return '';
-      return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-    }
-
-    final unitFromData = _resolveUnit(raw);
-
-    // --- sum numeric values for TODAY only ---
-    num total = 0;
-
-    for (final e in raw) {
-      if (e is! Map) continue;
-
-      // Check if the entry is from today
-      final dateFrom = e['dateFrom'];
-      if (dateFrom is! String || !dateFrom.contains(today)) {
-        continue; // Skip entries not from today
-      }
-
-      final value = e['value'];
-
-      num? numericValue;
-
-      if (value is NumericHealthValue) {
-        // ✅ plugin object case
-        numericValue = value.numericValue;
-      } else if (value is Map) {
-        // ✅ in case the plugin/data source returns it as a Map
-        numericValue = value['numericValue'] as num?;
-      }
-
-      if (numericValue != null) {
-        total += numericValue;
-      }
-    }
-
-    // optional unit conversion
-    String outUnit = simplifiedUnits[unitFromData] ?? unitFromData;
-    if (convertMetersToKm && unitFromData == "METER") {
-      total = total / 1000;
-      outUnit = "km";
-    }
-
-    // format nicely
-    String formatted;
-    if (total % 1 == 0) {
-      formatted = total.toInt().toString();
-    } else {
-      formatted = total.toStringAsFixed(decimalsIfDouble);
-    }
-
-    return {"data": formatted, "unit": outUnit};
+    debugPrint("->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->");
   }
 
   Map<String, Map<String, double>> getDWMPercentagesForStepsAndDistance() {
@@ -271,8 +108,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     };
 
     // Get the actual values for steps and distance
-    final stepsData = getHealthValue("HealthDataType.STEPS");
-    final distanceData = getHealthValue("HealthDataType.DISTANCE_DELTA");
+    final stepsData = HealthUtils.getHealthValue(healthData, "HealthDataType.STEPS");
+    final distanceData = HealthUtils.getHealthValue(healthData, "HealthDataType.DISTANCE_DELTA");
     print("Result: ${stepsData}");
     // Parse today's values
     double stepsToday =
@@ -304,9 +141,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return result;
   }
-
-  var data;
-  var notifications;
 
   Future<Map<String, dynamic>?> fetchNutritionData() async {
     try {

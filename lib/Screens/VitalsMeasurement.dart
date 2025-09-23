@@ -7,7 +7,7 @@ import 'package:befab/components/CustomAppHeader.dart';
 import 'package:befab/components/CustomBottomNavBar.dart';
 import 'package:befab/components/HealthMetricsListWidget.dart';
 import 'package:befab/components/HeartRateWidget.dart';
-import 'package:befab/services/health_service.dart';
+import 'package:befab/services/health_service/health_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
