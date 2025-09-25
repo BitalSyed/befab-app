@@ -1,4 +1,5 @@
 import 'package:befab/components/DeepDiveCard.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -10,7 +11,6 @@ class DeepDiveScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).primaryColor;
     return Scaffold(
       appBar: AppBar(
         title: const Text("Deep Dives"),
@@ -77,10 +77,9 @@ class DeepDiveScreen extends StatelessWidget {
                           return DeepDiveCard(
                             title: dd["title"] ?? "Untitled",
                             subtitle: dd["description"] ?? "",
-                            leading: _ThumbIcon(
-                              color: primary.withOpacity(0.12),
-                              icon: Icons.picture_as_pdf,
-                              iconColor: primary,
+                            leading: _ThumbImage(
+                              imageUrl:
+                                  dd["picture"], // <-- use picture instead of icon
                             ),
                             onTap: () {
                               final fetchedPdf = dd["pdf"];
@@ -113,26 +112,34 @@ class DeepDiveScreen extends StatelessWidget {
   }
 }
 
-class _ThumbIcon extends StatelessWidget {
-  final Color color;
-  final Color iconColor;
-  final IconData icon;
-  const _ThumbIcon({
-    required this.color,
-    required this.icon,
-    required this.iconColor,
-  });
+
+class _ThumbImage extends StatelessWidget {
+  final String? imageUrl;
+  const _ThumbImage({this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        child: (imageUrl != null && imageUrl!.isNotEmpty)
+            ? CachedNetworkImage(
+                imageUrl: imageUrl!,
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+                placeholder: (context, url) =>
+                    const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                errorWidget: (context, url, error) =>
+                    const Icon(Icons.broken_image, color: Colors.grey, size: 28),
+              )
+            : Container(
+                color: const Color(0xFFF2F2F2),
+                child: const Icon(Icons.broken_image, color: Colors.grey, size: 28),
+              ),
       ),
-      child: Icon(icon, color: iconColor, size: 28),
     );
   }
 }
+

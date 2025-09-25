@@ -2,7 +2,7 @@ name: befab
 description: "A new Flutter project."
 publish_to: "none"
 
-version: 1.0.3+16
+version: 1.0.4+15
 
 environment:
   sdk: ">=3.7.0 <4.0.0"
@@ -34,6 +34,9 @@ dependencies:
 
   # for newsletter pdf rendering
   syncfusion_flutter_pdfviewer: ^30.2.7
+
+  # for newsletter pictures
+  cached_network_image: ^3.4.1
 
   
 

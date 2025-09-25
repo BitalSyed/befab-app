@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -91,24 +92,22 @@ class _AllNewslettersScreenState extends State<AllNewslettersScreen> {
                           if (n["picture"] != null && n["picture"].isNotEmpty)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(16),
-                              child:
-                                  (n["picture"] != null &&
-                                          n["picture"].toString().isNotEmpty)
-                                      ? Image.network(
-                                        "${n["picture"]}",
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (_, __, ___) => const Icon(
-                                              Icons.image_not_supported,
-                                              size: 60,
-                                              color: Colors.grey,
-                                            ),
-                                      )
-                                      : const Icon(
-                                        Icons.image_not_supported,
-                                        size: 60,
-                                        color: Colors.grey,
+                              child: CachedNetworkImage(
+                                imageUrl: n["picture"],
+                                fit: BoxFit.cover,
+                                placeholder:
+                                    (context, url) => const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
                                       ),
+                                    ),
+                                errorWidget:
+                                    (context, url, error) => const Icon(
+                                      Icons.image_not_supported,
+                                      size: 60,
+                                      color: Colors.grey,
+                                    ),
+                              ),
                             ),
 
                           const SizedBox(height: 16),
